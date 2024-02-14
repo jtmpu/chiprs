@@ -63,6 +63,10 @@ impl u12 {
         let value = (((upper as u16) & 0xF) << 8) | (lower as u16);
         Self { value }
     }
+
+    pub fn value(&self) -> u16 {
+        self.value
+    }
 }
 
 impl PartialEq<u16> for u12 {
