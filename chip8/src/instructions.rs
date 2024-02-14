@@ -38,6 +38,32 @@ impl PartialEq<u8> for u4 {
     }
 }
 
+/// Represents a 12 bit value
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(non_camel_case_types)]
+pub struct u12 {
+    value: u16,
+}
+
+impl u12 {
+    pub fn decompose(input: u16) -> (u4, u12) {
+        let value = input & 0x0FFF;
+        let nibble = (input & 0xF000) >> 12;
+        (u4::little(nibble as u8), Self { value })
+    }
+
+    pub fn extract(input: u16) -> u12 {
+        let (_, ret) = u12::decompose(input);
+        ret
+    }
+}
+
+impl PartialEq<u16> for u12 {
+    fn eq(&self, other: &u16) -> bool {
+        self.value == *other
+    }
+}
+
 pub enum Instruction {
 }
 
@@ -60,5 +86,16 @@ mod tests {
 
         let value = u4::little(0xEA);
         assert_eq!(value, 0xA);
+    }
+
+    #[test]
+    fn test_u12() {
+        let input = 0xABCD;
+        let (first, second) = u12::decompose(input);
+        assert_eq!(first, 0xA);
+        assert_eq!(second, 0xBCD);
+
+        let third = u12::extract(input);
+        assert_eq!(third, 0xBCD);
     }
 }
