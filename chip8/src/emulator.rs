@@ -6,6 +6,8 @@ use std::fmt;
 use std::io::Read;
 use std::error::Error;
 
+use tracing::{debug, error, span, Level};
+
 use crate::instructions::Instruction;
 
 #[derive(Debug, Clone)]
@@ -50,6 +52,8 @@ impl Emulator {
 
     /// Resets everything in the emulator
     pub fn reset(&mut self) {
+        debug!("reseting emulator");
+
         self.memory = [0; MEMSIZE];
         self.registries = [0; REGISTRY_COUNT];
         self.program_counter = START_ADDR;
@@ -59,14 +63,24 @@ impl Emulator {
 
     pub fn load<T: Read>(&mut self, mut reader: T) -> Result<(), Box<dyn Error>> {
         self.reset();
-        reader.read(&mut self.memory[START_ADDR..])?;
+        let bytes = match reader.read(&mut self.memory[START_ADDR..]) {
+            Ok(n) => n,
+            Err(e) => {
+                error!(error = ?e, "failed to load bytes into emulator memory");
+                return Err(e.into());
+            }
+        };
+        debug!(%bytes, "loaded bytes into emulator memory");
         Ok(())
     }
 
     fn instruction(&self) -> Result<Instruction, Box<dyn Error>> {
+        // Expecting big endian
+        let big = self.memory[self.program_counter];
+        let little = self.memory[self.program_counter + 1];
         let instruction = Instruction::from_opcode_u8(
-            self.memory[self.program_counter],
-            self.memory[self.program_counter + 1],
+            big,
+            little,
         );
         let instruction = if let Some(i) = instruction {
             i
@@ -77,13 +91,33 @@ impl Emulator {
     }
 
     pub fn tick(&mut self) -> Result<(), Box<dyn Error>> {
-        let instruction = self.instruction()?;
+        let span = span!(Level::INFO, "emulator.tick");
+        let _guard = span.enter();
+        let instruction = match self.instruction() {
+            Ok(i) => i,
+            Err(e) => {
+                error!(
+                    pc = self.program_counter,
+                    error = ?e, 
+                    "failed to parse instruction opcode"
+                );
+                return Err(e.into())
+            }
+        };
         self.program_counter += 2;
-        self.execute(instruction)?;
+        if let Err(e) = self.execute(instruction) {
+            error!(
+                pc = self.program_counter,
+                error = ?e,
+                "failed to execute instruction"
+            );
+            return Err(e.into())
+        }
         Ok(())
     }
 
     pub fn execute(&mut self, instruction: Instruction) -> Result<(), Box<dyn Error>> {
+        debug!(instruction = ?instruction, "executing instruction");
         match instruction {
             Instruction::Jump(addr) => {
                 self.program_counter = addr.value() as usize;

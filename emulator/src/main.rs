@@ -10,15 +10,59 @@ struct Args {
     /// File to load chip-8 binary from
     #[arg(short, long)]
     file: String,
+
+    #[arg(short, long)]
+    debug: bool,
+
+    #[arg(short, long)]
+    verbose: bool,
+
+    
+    #[clap(long)]
+    #[clap(help = "message format for logging")]
+    #[clap(value_enum, default_value_t=LogFormat::Plain)]
+    log_format: LogFormat,
+}
+
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum LogFormat {
+    Json,
+    Pretty,
+    Plain,
+}
+
+fn configure_logger(args: &Args) {
+    let level = if args.debug {
+        Level::DEBUG
+    } else if args.verbose {
+        Level::INFO
+    } else {
+        Level::WARN
+    };
+
+    let sub = tracing_subscriber::fmt()
+        .with_max_level(level);
+
+    match args.log_format {
+        LogFormat::Json => {
+            sub.json().init();
+        }, 
+        LogFormat::Pretty => {
+            sub.pretty().init();
+        },
+        LogFormat::Plain => {
+            sub.init();
+        },
+    };
 }
 
 fn main() {
-    tracing_subscriber::fmt()
-        .json()
-        .init();
     let args = Args::parse();
 
-    let _guard = span!(Level::INFO, "emulator-bin:main");
+    configure_logger(&args);
+
+    let span = span!(Level::INFO, "emulator-bin:main");
+    let _guard = span.enter();
     let path = Path::new(args.file.as_str());
     if !path.exists() {
         error!("chip-8 bin file doesn't exist: {}", path.display()); 
@@ -43,6 +87,6 @@ fn main() {
     }
     for _ in 1..32 {
         emulator.tick().unwrap();
-        emulator.dump_state();
     }
+    emulator.dump_state();
 }
