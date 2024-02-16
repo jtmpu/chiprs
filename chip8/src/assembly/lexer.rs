@@ -69,6 +69,7 @@ impl<T: Read> Lexer<T> {
         }
         let ret = self.peek();
         self.cursor += 1;
+        self.column += 1;
 
         Ok(ret as char)
     }
@@ -89,7 +90,6 @@ impl<T: Read> Lexer<T> {
         Ok(chars)
     }
 
-
     pub fn next(&mut self) -> Result<Token, ()> {
         if self.is_stream_end() {
             return Ok(Token::EOF);
@@ -104,10 +104,16 @@ impl<T: Read> Lexer<T> {
                 self.collect(b, is_whitespace)?;
                 Token::Whitespace
             },
-            b if b == '\n' => Token::EOL,
+            b if b == '\n' => {
+                self.line += 1;
+                self.column = 0;
+                Token::EOL
+            },
             b if b == '\r' => {
                 if self.peek() as char == '\n' {
                     self.pop()?;
+                    self.line += 1;
+                    self.column = 0;
                     Token::EOL
                 } else {
                     Token::Symbol(b)
@@ -144,6 +150,18 @@ impl<T: Read> Lexer<T> {
         }
         Ok(tokens)
     }
+
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
+    pub fn column(&self) -> usize {
+        self.column
+    }
+
+    pub fn location(&self) -> (usize, usize) {
+        (self.line, self.column)
+    }
 }
 
 fn is_whitespace(c: char) -> bool {
@@ -178,7 +196,63 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_whitespace() {
+    fn line_counter() {
+        let input = "1\n2\r\n3";
+        let mut lexer = Lexer::new(BufReader::new(input.as_bytes()));
+        assert_eq!(lexer.line(), 0);
+        assert_eq!(lexer.next().unwrap(), Token::Integer(1));
+        assert_eq!(lexer.line(), 0);
+        assert_eq!(lexer.next().unwrap(), Token::EOL);
+        assert_eq!(lexer.line(), 1);
+        assert_eq!(lexer.next().unwrap(), Token::Integer(2));
+        assert_eq!(lexer.line(), 1);
+        assert_eq!(lexer.next().unwrap(), Token::EOL);
+        assert_eq!(lexer.line(), 2);
+        assert_eq!(lexer.next().unwrap(), Token::Integer(3));
+        assert_eq!(lexer.line(), 2);
+        assert_eq!(lexer.next().unwrap(), Token::EOF);
+    }
+
+    #[test]
+    fn column_counter() {
+        let input = "1 abc 32";
+        let mut lexer = Lexer::new(BufReader::new(input.as_bytes()));
+        assert_eq!(lexer.column(), 0);
+        assert_eq!(lexer.next().unwrap(), Token::Integer(1));
+        assert_eq!(lexer.column(), 1);
+        assert_eq!(lexer.next().unwrap(), Token::Whitespace);
+        assert_eq!(lexer.column(), 2);
+        assert_eq!(lexer.next().unwrap(), Token::Alphanumeric("abc".to_string()));
+        assert_eq!(lexer.column(), 5);
+        assert_eq!(lexer.next().unwrap(), Token::Whitespace);
+        assert_eq!(lexer.column(), 6);
+        assert_eq!(lexer.next().unwrap(), Token::Integer(32));
+    }
+
+    #[test]
+    fn line_and_column_counter8() {
+        let input = "1 abc\n32 ewq";
+        let mut lexer = Lexer::new(BufReader::new(input.as_bytes()));
+        assert_eq!(lexer.location(), (0,0));
+        assert_eq!(lexer.next().unwrap(), Token::Integer(1));
+        assert_eq!(lexer.location(), (0,1));
+        assert_eq!(lexer.next().unwrap(), Token::Whitespace);
+        assert_eq!(lexer.location(), (0,2));
+        assert_eq!(lexer.next().unwrap(), Token::Alphanumeric("abc".to_string()));
+        assert_eq!(lexer.location(), (0,5));
+        assert_eq!(lexer.next().unwrap(), Token::EOL);
+        assert_eq!(lexer.location(), (1,0));
+        assert_eq!(lexer.next().unwrap(), Token::Integer(32));
+        assert_eq!(lexer.location(), (1,2));
+        assert_eq!(lexer.next().unwrap(), Token::Whitespace);
+        assert_eq!(lexer.location(), (1,3));
+        assert_eq!(lexer.next().unwrap(), Token::Alphanumeric("ewq".to_string()));
+        assert_eq!(lexer.location(), (1,6));
+        assert_eq!(lexer.next().unwrap(), Token::EOF);
+    }
+
+    #[test]
+    fn whitespace() {
         lex_and_assert(
             "\t \t",
             vec![Token::Whitespace, Token::EOF],
@@ -186,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_comma() {
+    fn comma() {
         lex_and_assert(
             ",",
             vec![Token::Comma, Token::EOF],
@@ -194,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_colon() {
+    fn colon() {
         lex_and_assert(
             ":",
             vec![Token::Colon, Token::EOF],
@@ -202,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_semicolon() {
+    fn semicolon() {
         lex_and_assert(
             ";",
             vec![Token::Semicolon, Token::EOF],
@@ -210,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_integer() {
+    fn integer() {
         lex_and_assert(
             "321",
             vec![Token::Integer(321), Token::EOF],
@@ -218,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_alphanumeric() {
+    fn alphanumeric() {
         lex_and_assert(
             "tJKo32Ii",
             vec![Token::Alphanumeric("tJKo32Ii".to_string()), Token::EOF],
@@ -226,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_symbol() {
+    fn symbol() {
         lex_and_assert(
             "(#'",
             vec![Token::Symbol('('), Token::Symbol('#'), Token::Symbol('\''), Token::EOF],
@@ -234,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_unknown() {
+    fn unknown() {
         lex_and_assert(
             "\x02",
             vec![Token::Unknown(0x02), Token::EOF],
@@ -242,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_newline() {
+    fn newline() {
         lex_and_assert(
             "\n\r\n",
             vec![
@@ -254,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_instruction() {
+    fn instruction() {
         lex_and_assert(
             "mov r1, 24",
             vec![
@@ -270,7 +344,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_label_instruction() {
+    fn label_instruction() {
         lex_and_assert(
             "label:\n\tmov r1, 24",
             vec![
@@ -290,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_instruction_comment() {
+    fn instruction_comment() {
         lex_and_assert(
             "mov r1, 24 ; comment",
             vec![
@@ -310,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_comment() {
+    fn comment() {
         lex_and_assert(
             "; something else",
             vec![
@@ -325,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lexer_multiline() {
+    fn multiline() {
         lex_and_assert(
             "; comment\njmp 321",
             vec![
