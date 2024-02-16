@@ -1,22 +1,6 @@
 //!
-//! # Chip-8 Assembly
+//! # Chip-8 lexer
 //!
-//! ## Language definition & BNF
-//!
-//! <digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-//! <letter> ::= "a" | ... | "z" | "A" | ... | "Z" 
-//! <symbol> ::= "|" | " " | "!" | ... | "~"
-//! <integer> ::= <digit>|<integer><digit>
-//! <character> ::= <letter> | <digit> | <symbol>
-//! <whitespace> ::= " " | "\t"
-//! <opt-whitespace> ::= <whitespace> | <opt-whitespace> <whitespace> | ""
-//! <EOL> ::= "\n" | "\r" "\n" | EOF
-//! <line-end> ::= <opt-whitespace> <EOL>
-//! <literal> ::= <character> | <literal> <character>
-//! <text> ::= <literal> <opt-whitespace> | <text> <literal> <opt-whitespace>
-//! <comment-start> ::= ";"
-//! <comment> ::= <opt-whitespace> <comment-start> <opt-whitespace> <text> <line-end>
-//! <comment-or-end> ::= <comment> | <opt-whitespace> <line-end>
 
 use std::io::Read;
 
