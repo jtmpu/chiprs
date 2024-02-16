@@ -86,7 +86,7 @@ impl<T: Read> Parser<T> {
         loop {
             let token = self.pop()?;
             if matches!(token, Token::EOL | Token::EOF) {
-                return Ok(Line::Comment("tmp".to_string()));
+                return Ok(Line::Comment("".to_string()));
             }
         }
     }
