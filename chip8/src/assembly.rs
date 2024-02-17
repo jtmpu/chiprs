@@ -8,6 +8,19 @@ pub struct Assembly {
     pub instructions: Vec<ParsedInstruction>,
 }
 
+impl Assembly {
+    /// Converts the assembly to binary
+    pub fn binary(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        for instr in &self.instructions {
+            let opcode = instr.instruction.opcode();
+            let bytes = opcode.to_be_bytes();
+            buffer.extend(bytes);
+        }
+        buffer
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedInstruction {
     pub instruction: Instruction,

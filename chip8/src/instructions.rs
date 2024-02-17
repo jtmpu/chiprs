@@ -124,6 +124,14 @@ impl Instruction {
             (_, _) => None,
         }
     }
+
+    pub fn opcode(&self) -> u16 {
+        match self {
+            Self::Clear => 0x00e0,
+            Self::Jump(addr) => 0x1000 | addr.value(),
+            _ => 0x0000,
+        }
+    }
 }
 
 #[cfg(test)]

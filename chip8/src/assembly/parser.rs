@@ -314,7 +314,20 @@ impl<T: Read> Parser<T> {
     }
 
     fn try_parse_line(&mut self) -> Result<Option<Line>, ()> {
-        self.trim_whitespace()?;
+        loop {
+            // remove empty spaces and lines
+            self.trim_whitespace()?;
+            match self.peek()? {
+                Token::EOL => {
+                    self.pop()?;
+                }
+                Token::EOF => {
+                    self.pop()?;
+                    return Ok(None)
+                }
+                _ => break,
+            };
+        }
         let token = self.pop()?;
         match &token {
             Token::EOF => {
@@ -405,7 +418,6 @@ fn convert_to_instructions(lines: Vec<&Line>) -> Result<Vec<ParsedInstruction>, 
 mod test {
     use super::*;
     use std::io::BufReader;
-    use std::io::Read;
 
     fn parse_and_assert(input: &str, expected: Vec<ParsedInstruction>) {
         let reader = BufReader::new(input.as_bytes());
@@ -473,6 +485,59 @@ mod test {
             ].iter()
                 .map(|e| ParsedInstruction::from_instruction(e.clone()))
                 .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_label() {
+        parse_and_assert(
+            "main:\nadd r14 30",
+            vec![
+                Instruction::Add(u4::little(14), 30),
+            ].iter()
+                .map(|e| ParsedInstruction::from_instruction_label(e.clone(), "main".to_string()))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_integration() {
+        let expected = vec![
+            ParsedInstruction::from_instruction_label(
+                Instruction::Move(u4::little(1), 0),
+                "main".to_string(),
+            ),
+            ParsedInstruction::from_instruction(
+                Instruction::Add(u4::little(1), 1),
+            ),
+            ParsedInstruction::from_instruction(
+                Instruction::Clear,
+            ),
+            ParsedInstruction::from_instruction(
+                Instruction::SkipNotEqual(u4::little(1), 4),
+            ),
+            ParsedInstruction::from_instruction(
+                Instruction::Jump(u12::from_u16(123)),
+            ),
+            ParsedInstruction::from_instruction_label(
+                Instruction::Add(u4::little(2), 0),
+                "other".to_string(),
+            ),
+        ];
+        parse_and_assert(
+            "; this asm contains a little bit of everything
+main:
+    mov r1 0
+    add r1 1
+    clear
+    sne r1 4 ; abort
+    jmp 123
+
+
+other:
+    add r2 0
+        ",
+            expected,
         );
     }
 }
