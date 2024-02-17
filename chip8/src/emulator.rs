@@ -119,6 +119,9 @@ impl Emulator {
     pub fn execute(&mut self, instruction: Instruction) -> Result<(), Box<dyn Error>> {
         debug!(instruction = ?instruction, "executing instruction");
         match instruction {
+            Instruction::Clear => {
+                // Currently noop
+            },
             Instruction::Jump(addr) => {
                 self.program_counter = addr.value() as usize;
             },

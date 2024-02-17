@@ -77,6 +77,8 @@ impl PartialEq<u16> for u12 {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Instruction {
+    /// 00e0
+    Clear,
     /// 1nnn - Jump to addr nnn
     Jump(u12),
     /// 4xkk - Skip next instruction if Vx != kk
@@ -97,6 +99,9 @@ impl Instruction {
     /// Deconstructs the opcode into an instruction if possible
     pub fn from_opcode_u8(upper: u8, lower: u8) -> Option<Instruction> {
         match (upper & 0xF0, lower) {
+            (0x00, 0xe0) => {
+                Some(Self::Clear)
+            },
             (0x10, _) => {
                 let address = u12::from_bytes(upper, lower);
                 Some(Self::Jump(address))
