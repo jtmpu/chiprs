@@ -144,6 +144,11 @@ impl Emulator {
             Instruction::Add(register, value) => {
                 self.registries[register.value() as usize] += value;
             },
+            Instruction::Or(regx, regy) => {
+                let vx = self.registries[regx.value() as usize];
+                let vy = self.registries[regy.value() as usize];
+                self.registries[regx.value() as usize] = vx | vy;
+            }
         };
         Ok(true)
     }

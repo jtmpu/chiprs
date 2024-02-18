@@ -89,7 +89,7 @@ impl From<u16> for u12 {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Instruction {
-    /// 00ef - Custom code to make assembler exit gracefully
+    /// dead - Custom code to make assembler exit gracefully
     Abort,
     /// 00e0
     Clear,
@@ -101,6 +101,8 @@ pub enum Instruction {
     Move(u4, u8),
     /// 7xkk - Set Vx = Vx + kk
     Add(u4, u8),
+    /// 8xy1 - Set Vx = Vx OR Vy
+    Or(u4, u4),
 }
 
 impl Instruction {
@@ -112,39 +114,39 @@ impl Instruction {
 
     /// Deconstructs the opcode into an instruction if possible
     pub fn from_opcode_u8(upper: u8, lower: u8) -> Option<Instruction> {
-        match (upper & 0xF0, lower) {
-            (0x00, 0xef) => {
-                Some(Self::Abort)
-            },
-            (0x00, 0xe0) => {
+        match (upper & 0xF0, upper & 0x0F, lower & 0xF0, lower & 0x0F) {
+            (0x00, 0x00, 0xe0, 0x00) => {
                 Some(Self::Clear)
             },
-            (0x10, _) => {
+            (0x10, _, _, _) => {
                 let address = u12::from_bytes(upper, lower);
                 Some(Self::Jump(address))
             },
-            (0x40, _) => {
+            (0x40, _, _, _) => {
                 let register = u4::little(upper);
                 let value = lower;
                 Some(Self::SkipNotEqual(register, value))
             },
-            (0x60, _) => {
+            (0x60, _, _, _) => {
                 let register = u4::little(upper);
                 let value = lower;
                 Some(Self::Move(register, value))
             },
-            (0x70, _) => {
+            (0x70, _, _, _) => {
                 let register = u4::little(upper);
                 let value = lower;
                 Some(Self::Add(register, value))
             },
-            (_, _) => None,
+            (0xD0, 0x0E, 0xA0, 0x0D) => {
+                Some(Self::Abort)
+            },
+            (_, _, _, _) => None,
         }
     }
 
     pub fn opcode(&self) -> u16 {
         match self {
-            Self::Abort => 0x00ef,
+            Self::Abort => 0xdead,
             Self::Clear => 0x00e0,
             Self::Jump(addr) => 0x1000 | addr.value(),
             Self::SkipNotEqual(reg, value) => {
@@ -162,6 +164,11 @@ impl Instruction {
                 let small: u16 = *value as u16;
                 return (big << 8) | small;
             },
+            Self::Or(regx, regy) => {
+                let big: u16 = 0x80 | (regx.value() as u16);
+                let small: u16 = (regy.value() as u16) << 4 | (0x01 as u16);
+                return (big << 8) | small;
+            }
         }
     }
 
@@ -173,6 +180,7 @@ impl Instruction {
             Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),
             Self::Move(reg, value) => format!("mov r{} {}", reg.value(), value),
             Self::Add(reg, value) => format!("add r{} {}", reg.value(), value),
+            Self::Or(regx, regy) => format!("or r{} r{}", regx.value(), regy.value()),
         }
     }
 }
@@ -212,7 +220,7 @@ mod tests {
     #[test]
     fn test_instruction_from_opcode() {
         let cases: Vec<(u16, Instruction)> = vec![
-            (0x00EF, Instruction::Abort),
+            (0xDEAD, Instruction::Abort),
             (0x00E0, Instruction::Clear),
             (0x1BFD, Instruction::Jump(u12::from_u16(0xBFD))),
             (0x61FF, Instruction::Move(u4::little(0x01), 0xFF)),
@@ -232,7 +240,7 @@ mod tests {
     #[test]
     fn test_instruction_to_opcode() {
         let cases: Vec<(Instruction, u16)> = vec![
-            (Instruction::Abort, 0x00ef),
+            (Instruction::Abort, 0xDEAD),
             (Instruction::Clear, 0x00e0),
             (Instruction::Jump(0x123.into()), 0x1123),
             (Instruction::Move(0x02.into(), 0x42), 0x6242),

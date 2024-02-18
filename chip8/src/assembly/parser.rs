@@ -163,6 +163,13 @@ impl RawInstr {
                     .map_err(|e| ParsingError::ArgumentError("add", self.location, e))?;
                 Instruction::Add(reg_index, value)
             },
+            "or" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("or", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("or", self.location, e))?;
+                Instruction::Or(regx_index, regy_index)
+            },
             "jmp" => {
                 let addr = if let Some(s) = self.arg1.as_ref() {
                     match RawInstr::parse_as_address(self.arg1.as_ref()) {
@@ -609,11 +616,35 @@ mod test {
     }
 
     #[test]
+    fn parse_or() {
+        parse_and_assert(
+            "or r1 r2",
+            vec![
+                Instruction::Or(0x01.into(), 0x02.into()),
+            ].iter()
+                .map(|e| ParsedInstruction::new(e.clone()))
+                .collect(),
+        );
+    }
+
+    #[test]
     fn parse_add() {
         parse_and_assert(
             "add r14 30",
             vec![
                 Instruction::Add(u4::little(14), 30),
+            ].iter()
+                .map(|e| ParsedInstruction::new(e.clone()))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_abort() {
+        parse_and_assert(
+            "abort",
+            vec![
+                Instruction::Abort,
             ].iter()
                 .map(|e| ParsedInstruction::new(e.clone()))
                 .collect(),
