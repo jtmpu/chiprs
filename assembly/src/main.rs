@@ -1,17 +1,17 @@
 
 use std::fs::File;
+use std::io::{self, BufReader, Write};
 
-use clap::Parser;
+use clap::{Parser, Subcommand, Args};
 use tracing::{error, span, Level};
 
-use chip8::assembly::parser;
+use chip8;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-struct Args {
-    /// File to load chip-8 binary from
-    #[arg(short, long)]
-    file: String,
+struct CliArgs {
+    #[command(subcommand)]
+    command: Option<Commands>,
 
     #[arg(short, long)]
     debug: bool,
@@ -19,11 +19,27 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
-    
     #[clap(long)]
     #[clap(help = "message format for logging")]
     #[clap(value_enum, default_value_t=LogFormat::Plain)]
     log_format: LogFormat,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Asm(AssemblyCommands),
+}
+
+#[derive(Debug, Args)]
+struct AssemblyCommands {
+    #[arg(short, long)]
+    input: String,
+
+    #[arg(short, long)]
+    ast: bool,
+
+    #[arg(short, long)]
+    output: Option<String>,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -33,7 +49,7 @@ enum LogFormat {
     Plain,
 }
 
-fn configure_logger(args: &Args) {
+fn configure_logger(args: &CliArgs) {
     let level = if args.debug {
         Level::DEBUG
     } else if args.verbose {
@@ -60,12 +76,36 @@ fn configure_logger(args: &Args) {
 
 
 fn main() {
-    let args = Args::parse();
+    let args = CliArgs::parse();
     configure_logger(&args);
 
-    let reader = File::open(args.file).unwrap();
-    let mut parser = parser::Parser::new(reader);
-    let assembly = parser.parse();
-
-    println!("{:?}", assembly);
+    match &args.command {
+        Some(Commands::Asm(a)) => {
+            run_assembler(a, &args);
+        },
+        None => {},
+    };
 }
+
+fn run_assembler(args: &AssemblyCommands, global_args: &CliArgs) {
+    let file = File::open(&args.input).unwrap();
+    let mut parser = chip8::assembly::parser::Parser::new(file);
+    let assembly = parser.parse().unwrap();
+
+    if args.ast {
+        for i in assembly.instructions {
+            println!("{:?}", i);
+        }
+        return;
+    }
+
+    let binary = assembly.binary().unwrap();
+    if let Some(output) = &args.output {
+        let mut file = File::create(output).unwrap(); 
+        file.write_all(binary.as_ref()).unwrap();
+    } else {
+        let mut stdout = io::stdout();
+        stdout.write_all(binary.as_ref()).unwrap();
+    }
+}
+

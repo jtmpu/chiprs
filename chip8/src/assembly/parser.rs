@@ -83,7 +83,6 @@ impl RawInstr {
                 return Err(())
             }
         };
-        println!("{:?}, {:?}", instruction, label);
         let parsed = ParsedInstruction {
             instruction,
             label,
