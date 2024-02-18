@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{self, BufReader, Write};
 
 use clap::{Parser, Subcommand, Args};
-use tracing::Level;
+use tracing::{Level, error};
 
 use chip8;
 use chip8::assembly::lexer::Lexer;
@@ -99,7 +99,13 @@ fn run_assembler(args: &AssemblyCommands, _global_args: &CliArgs) {
         Box::new(lexer)
     };
     let mut parser = chip8::assembly::parser::Parser::new(lexer);
-    let assembly = parser.parse().unwrap();
+    let assembly = match parser.parse() {
+        Ok(asm) => asm,
+        Err(e) => {
+            error!("failed to parse assembly: {}", e.to_string());
+            return;
+        }
+    };
 
     if args.ast {
         for i in assembly.instructions {
