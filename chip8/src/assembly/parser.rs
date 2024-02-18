@@ -18,6 +18,7 @@
 
 use std::io::Read;
 
+use std::collections::HashMap;
 use tracing::{debug, info, error};
 
 use crate::assembly::{Assembly, ParsedInstruction};
@@ -70,7 +71,7 @@ impl RawInstr {
                 return Err(())
             }
         };
-        Ok(ParsedInstruction::from_instruction(instruction))
+        Ok(ParsedInstruction::new(instruction))
     }
     fn parse_as_registry(arg: Option<&String>) -> Result<u4, ()> {
         let value = if let Some(value) = arg {
@@ -361,57 +362,43 @@ impl<T: Read> Parser<T> {
             lines.push(line);
         }
 
-        // Filter comments
-        let lines: Vec<&Line> = lines.iter()
-            .filter(|l| !l.is_comment())
-            .collect();
-        let instructions = convert_to_instructions(lines)?;
+        let (instructions, labels) = convert_to_instructions(lines)?;
 
-        Ok(Assembly { instructions })
+        Ok(Assembly { instructions, labels })
     }
 }
 
-fn convert_to_instructions(lines: Vec<&Line>) -> Result<Vec<ParsedInstruction>, ()> {
+fn convert_to_instructions(lines: Vec<Line>) -> Result<(Vec<ParsedInstruction>, HashMap<String, usize>), ()> {
+    // Filter comments
+    let lines: Vec<&Line> = lines.iter()
+        .filter(|l| !l.is_comment())
+        .collect();
+
     let mut instructions = Vec::new();
+    let mut labels = HashMap::new();
     let mut cursor = 0;
+    let mut instr_cursor = 0;
     loop {
         if cursor >= lines.len() {
             break;
         }
 
         let line = lines[cursor];
-        cursor += 1;
-        let label = match line {
+        match line {
             Line::Instruction(raw) => {
                 instructions.push(raw.try_to_instruction()?);
-                continue;
+                instr_cursor += 1;
             },
             Line::Label(label) => {
-                label
+                labels.insert(label.clone(), instr_cursor);
             },
             _ => {
                 return Err(())
             }
         };
-        if cursor >= lines.len() {
-            // expected instruction after label
-            return Err(())
-        }
-        let line = lines[cursor];
         cursor += 1;
-        match line {
-            Line::Instruction(raw) => {
-                let mut instruction = raw.try_to_instruction()?;
-                instruction.label = Some(label.clone());
-                instructions.push(instruction);
-            },
-            _ => {
-                return Err(())
-            }
-        }
-
     }
-    Ok(instructions)
+    Ok((instructions, labels))
 }
 
 #[cfg(test)]
@@ -435,7 +422,7 @@ mod test {
             vec![
                 Instruction::Clear,
             ].iter()
-                .map(|e| ParsedInstruction::from_instruction(e.clone()))
+                .map(|e| ParsedInstruction::new(e.clone()))
                 .collect(),
         );
     }
@@ -447,7 +434,7 @@ mod test {
             vec![
                 Instruction::Move(u4::little(0x01), 42),
             ].iter()
-                .map(|e| ParsedInstruction::from_instruction(e.clone()))
+                .map(|e| ParsedInstruction::new(e.clone()))
                 .collect(),
         );
     }
@@ -459,7 +446,7 @@ mod test {
             vec![
                 Instruction::Jump(u12::from_u16(123)),
             ].iter()
-                .map(|e| ParsedInstruction::from_instruction(e.clone()))
+                .map(|e| ParsedInstruction::new(e.clone()))
                 .collect(),
         );
     }
@@ -471,7 +458,7 @@ mod test {
             vec![
                 Instruction::SkipNotEqual(u4::little(0x05), 10),
             ].iter()
-                .map(|e| ParsedInstruction::from_instruction(e.clone()))
+                .map(|e| ParsedInstruction::new(e.clone()))
                 .collect(),
         );
     }
@@ -483,49 +470,52 @@ mod test {
             vec![
                 Instruction::Add(u4::little(14), 30),
             ].iter()
-                .map(|e| ParsedInstruction::from_instruction(e.clone()))
+                .map(|e| ParsedInstruction::new(e.clone()))
                 .collect(),
         );
     }
 
     #[test]
     fn parse_label() {
-        parse_and_assert(
-            "main:\nadd r14 30",
-            vec![
+        let input = "main:\nadd r14 30";
+        let expected: Vec<ParsedInstruction> = vec![
                 Instruction::Add(u4::little(14), 30),
             ].iter()
-                .map(|e| ParsedInstruction::from_instruction_label(e.clone(), "main".to_string()))
-                .collect(),
-        );
+                .map(|e| ParsedInstruction::new(e.clone()))
+                .collect();
+        let reader = BufReader::new(input.as_bytes());
+        let mut parser = Parser::new(reader);
+        let assembly = parser.parse().unwrap();
+        for (e, r) in (&expected).into_iter().zip(&assembly.instructions) {
+            assert_eq!(e, r);
+        }
+
+        let location = assembly.labels.get("main");
+        assert!(location.is_some());
+        let location = *location.unwrap();
+        assert_eq!(location, 0);
     }
 
     #[test]
     fn parse_integration() {
-        let expected = vec![
-            ParsedInstruction::from_instruction_label(
+        let expected: Vec<ParsedInstruction> = vec![
+            ParsedInstruction::new(
                 Instruction::Move(u4::little(1), 0),
-                "main".to_string(),
             ),
-            ParsedInstruction::from_instruction(
+            ParsedInstruction::new(
                 Instruction::Add(u4::little(1), 1),
             ),
-            ParsedInstruction::from_instruction(
+            ParsedInstruction::new(
                 Instruction::Clear,
             ),
-            ParsedInstruction::from_instruction(
+            ParsedInstruction::new(
                 Instruction::SkipNotEqual(u4::little(1), 4),
             ),
-            ParsedInstruction::from_instruction(
+            ParsedInstruction::new(
                 Instruction::Jump(u12::from_u16(123)),
             ),
-            ParsedInstruction::from_instruction_label(
-                Instruction::Add(u4::little(2), 0),
-                "other".to_string(),
-            ),
         ];
-        parse_and_assert(
-            "; this asm contains a little bit of everything
+        let input = "; this asm contains a little bit of everything
 main:
     mov r1 0
     add r1 1
@@ -536,8 +526,23 @@ main:
 
 other:
     add r2 0
-        ",
-            expected,
-        );
+        ";
+
+        let reader = BufReader::new(input.as_bytes());
+        let mut parser = Parser::new(reader);
+        let assembly = parser.parse().unwrap();
+        for (e, r) in (&expected).into_iter().zip(&assembly.instructions) {
+            assert_eq!(e, r);
+        }
+
+        let location = assembly.labels.get("main");
+        assert!(location.is_some());
+        let location = *location.unwrap();
+        assert_eq!(location, 0);
+
+        let location = assembly.labels.get("other");
+        assert!(location.is_some());
+        let location = *location.unwrap();
+        assert_eq!(location, 5);
     }
 }

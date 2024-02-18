@@ -1,11 +1,14 @@
 pub mod lexer;
 pub mod parser;
 
+use std::collections::HashMap;
+
 use crate::instructions::Instruction;
 
 #[derive(Debug)]
 pub struct Assembly {
     pub instructions: Vec<ParsedInstruction>,
+    pub labels: HashMap<String, usize>,
 }
 
 impl Assembly {
@@ -24,23 +27,13 @@ impl Assembly {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedInstruction {
     pub instruction: Instruction,
-    pub label: Option<String>,
     pub source: Option<Source>,
 }
 
 impl ParsedInstruction {
-    fn from_instruction(instruction: Instruction) -> Self {
+    pub fn new(instruction: Instruction) -> Self {
         Self {
             instruction,
-            label: None,
-            source: None,
-        }
-    }
-
-    fn from_instruction_label(instruction: Instruction, label: String) -> Self {
-        Self {
-            instruction,
-            label: Some(label),
             source: None,
         }
     }
