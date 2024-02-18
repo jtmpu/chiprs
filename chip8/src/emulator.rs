@@ -13,7 +13,7 @@ use crate::instructions::Instruction;
 #[derive(Debug, Clone)]
 pub enum Chip8Error {
     UnimplementedInstruction,
-    InvalidOpcode,
+    InvalidOpcode(String),
 }
 
 impl fmt::Display for Chip8Error {
@@ -85,7 +85,7 @@ impl Emulator {
         let instruction = if let Some(i) = instruction {
             i
         } else {
-            return Err(Chip8Error::InvalidOpcode.into());
+            return Err(Chip8Error::InvalidOpcode(format!("0x{:02x}{:02x}", big, little)).into());
         };
         Ok(instruction)
     }
