@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{self, BufReader, Write};
 
 use clap::{Parser, Subcommand, Args};
-use tracing::{error, span, Level};
+use tracing::Level;
 
 use chip8;
 use chip8::assembly::lexer::Lexer;
@@ -88,7 +88,7 @@ fn main() {
     };
 }
 
-fn run_assembler(args: &AssemblyCommands, global_args: &CliArgs) {
+fn run_assembler(args: &AssemblyCommands, _global_args: &CliArgs) {
     let lexer: Box<dyn Lexer> = if let Some(f) = &args.input {
         let file = File::open(f).unwrap();
         let lexer = chip8::assembly::lexer::StreamLexer::new(file);

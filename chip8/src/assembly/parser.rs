@@ -16,49 +16,136 @@
 //! <line> ::= <comment><end> | <instruction-opt-label-opt-comment><end> | <empty><end>
 //! <assembly> ::= <assembly> <line> | <line>
 
-use std::io::Read;
-
 use std::collections::HashMap;
-use tracing::{debug, info, error};
 
 use crate::assembly::{Assembly, ParsedInstruction};
 use crate::instructions::{Instruction, u4, u12};
-use crate::assembly::lexer::{Lexer, Token};
+use crate::assembly::lexer::{Lexer, Token, LexerError};
+
+use std::fmt;
+use std::error::Error;
+use std::num::ParseIntError;
+
+#[derive(Debug)]
+pub enum ArgumentError {
+    IntegerParse(ParseIntError),
+    MissingRegistryPrefix(String),
+    UnexpectedArgument(String),
+    MissingArgument,
+}
+
+impl fmt::Display for ArgumentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::IntegerParse(ref err) => err.fmt(f),
+            Self::MissingRegistryPrefix(ref v) => write!(f, "Missing registry prefix 'r' for '{}'", v), 
+            Self::UnexpectedArgument(ref v) => write!(f, "Unexpected argument '{}'", v),
+            Self::MissingArgument => write!(f, "Missing required argument"),
+        }
+    }
+}
+
+impl Error for ArgumentError {
+}
+
+impl From<ParseIntError> for ArgumentError {
+    fn from(err: ParseIntError) -> Self {
+        ArgumentError::IntegerParse(err)
+    }
+}
+
+type Location = (usize, usize);
+#[derive(Debug)]
+pub enum ParsingError {
+    Lexer(LexerError),
+    ArgumentError(&'static str, ArgumentError),
+    UnknownInstruction(String, Location),
+    UnexpectedToken(&'static str, Token, Location),
+    MissingReferencedLabel(String),
+    Unknown(String),
+}
+
+
+impl fmt::Display for ParsingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Lexer(ref err) => err.fmt(f),
+            Self::ArgumentError(instruction, ref e) => {
+                write!(f, "Failed parsing instruction '{}', argument error: {}", instruction, e.to_string())
+            },
+            Self::UnknownInstruction(ref instr, location) => {
+                write!(f, "Unknown instruction '{}' at L:{} COL:{}", instr, location.0, location.1)
+            },
+            Self::UnexpectedToken(step, ref token, location) => {
+                write!(
+                    f, 
+                    "Unexpected token '{}' (L:{} COL:{}) while processing step '{}'", 
+                    token, 
+                    location.0, 
+                    location.1, 
+                    step
+                )
+            },
+            Self::Unknown(ref msg) => {
+                write!(f, "Unknown state and error: {}", msg)
+            },
+            Self::MissingReferencedLabel(ref label) => {
+                write!(f, "Missing referenced label {}", label)
+            },
+        }
+    }
+}
+
+impl Error for ParsingError {
+}
+
+impl From<LexerError> for ParsingError {
+    fn from(err: LexerError) -> ParsingError {
+        ParsingError::Lexer(err)
+    }
+}
 
 #[derive(Debug)]
 struct RawInstr {
     operation: String,
     arg1: Option<String>,
     arg2: Option<String>,
-    comment: Option<String>,
+    _comment: Option<String>,
+    location: Location,
 }
 
 impl RawInstr {
-    fn try_to_instruction(&self) -> Result<ParsedInstruction, ()> {
+    fn try_to_instruction(&self) -> Result<ParsedInstruction, ParsingError> {
         let mut label: Option<String> = None;
         let instruction = match self.operation.as_str() {
             "clear" => {
                 if let Some(v) = &self.arg1 {
-                    return Err(())
+                    return Err(ParsingError::ArgumentError("clear", ArgumentError::UnexpectedArgument(v.clone())));
                 }
-                if let Some(v) = &self.arg1 {
-                    return Err(())
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError("clear", ArgumentError::UnexpectedArgument(v.clone())));
                 }
                 Instruction::Clear
             },
             "sne" => {
-                let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())?;
-                let value = RawInstr::parse_as_value(self.arg2.as_ref())?;
+                let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sne", e))?;
+                let value = RawInstr::parse_as_value(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sne", e))?;
                 Instruction::SkipNotEqual(reg_index, value)
             }
             "mov" => {
-                let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())?;
-                let value = RawInstr::parse_as_value(self.arg2.as_ref())?;
+                let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("mov", e))?;
+                let value = RawInstr::parse_as_value(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("mov", e))?;
                 Instruction::Move(reg_index, value)
             },
             "add" => {
-                let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())?;
-                let value = RawInstr::parse_as_value(self.arg2.as_ref())?;
+                let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("add", e))?;
+                let value = RawInstr::parse_as_value(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("add", e))?;
                 Instruction::Add(reg_index, value)
             },
             "jmp" => {
@@ -72,15 +159,15 @@ impl RawInstr {
                         }
                     } 
                 } else {
-                    return Err(())
+                    return Err(ParsingError::ArgumentError("jmp", ArgumentError::MissingArgument));
                 };
                 if let Some(v) = &self.arg2 {
-                    return Err(())
+                    return Err(ParsingError::ArgumentError("jmp", ArgumentError::UnexpectedArgument(v.clone())));
                 }
                 Instruction::Jump(addr)
             },
-            _ => {
-                return Err(())
+            instr => {
+                return Err(ParsingError::UnknownInstruction(instr.to_string(), self.location));
             }
         };
         let parsed = ParsedInstruction {
@@ -90,37 +177,37 @@ impl RawInstr {
         };
         Ok(parsed)
     }
-    fn parse_as_registry(arg: Option<&String>) -> Result<u4, ()> {
+    fn parse_as_registry(arg: Option<&String>) -> Result<u4, ArgumentError> {
         let value = if let Some(value) = arg {
             value
         } else {
-            return Err(())
+            return Err(ArgumentError::MissingArgument)
         };
         let index = match value.strip_prefix("r") {
             Some(n) => n,
-            None => return Err(()),
+            None => return Err(ArgumentError::MissingRegistryPrefix(value.clone())),
         };
-        let index = index.parse::<u8>().map_err(|_| ())?;
+        let index = index.parse::<u8>()?;
         Ok(u4::little(index))
     }
 
-    fn parse_as_value(arg: Option<&String>) -> Result<u8, ()> {
+    fn parse_as_value(arg: Option<&String>) -> Result<u8, ArgumentError> {
         let value = if let Some(value) = arg {
             value
         } else {
-            return Err(())
+            return Err(ArgumentError::MissingArgument)
         };
-        let num = value.parse::<u8>().map_err(|_| ())?;
+        let num = value.parse::<u8>()?;
         Ok(num)
     }
 
-    fn parse_as_address(arg: Option<&String>) -> Result<u12, ()> {
+    fn parse_as_address(arg: Option<&String>) -> Result<u12, ArgumentError> {
         let value = if let Some(value) = arg {
             value
         } else {
-            return Err(())
+            return Err(ArgumentError::MissingArgument)
         };
-        let num = value.parse::<u16>().map_err(|_| ())?;
+        let num = value.parse::<u16>()?;
         Ok(u12::from_u16(num))
     }
 }
@@ -153,16 +240,16 @@ impl Parser {
         }
     }
 
-    fn pop(&mut self) -> Result<Token, ()> {
+    fn pop(&mut self) -> Result<Token, ParsingError> {
         if self.has_peeked {
             self.has_peeked = false;
             Ok(self.peek.clone())
         } else {
-            Ok(self.lexer.next().map_err(|_| ())?)
+            Ok(self.lexer.next()?)
         }
     }
 
-    fn peek(&mut self) -> Result<&Token, ()> {
+    fn peek(&mut self) -> Result<&Token, ParsingError> {
         if self.has_peeked {
             return Ok(&self.peek);
         }
@@ -171,7 +258,7 @@ impl Parser {
         Ok(&self.peek)
     }
 
-    fn trim_whitespace(&mut self) -> Result<(), ()> {
+    fn trim_whitespace(&mut self) -> Result<(), ParsingError> {
         loop {
             if matches!(self.peek()?, Token::Whitespace) {
                 self.pop()?;
@@ -181,7 +268,7 @@ impl Parser {
         }
     }
 
-    fn try_parse_comment(&mut self) -> Result<Line, ()> {
+    fn try_parse_comment(&mut self) -> Result<Line, ParsingError> {
         if matches!(self.peek()?, Token::Semicolon) {
             self.pop()?;
         }
@@ -193,12 +280,15 @@ impl Parser {
         }
     }
 
-    fn try_parse_label(&mut self, previous: &Token) -> Result<Line, ()> {
+    fn try_parse_label(&mut self, previous: &Token, location: Location) -> Result<Line, ParsingError> {
         if let Token::Alphanumeric(v) = previous {
-            if matches!(self.peek()?, Token::Colon) {
+            let location = self.lexer.location();
+            let token = self.peek()?;
+            if matches!(token, Token::Colon) {
                 self.pop()?;
                 let label = v.clone();
                 loop {
+                    let location = self.lexer.location();
                     match self.peek()? {
                         Token::EOL => {
                             self.pop()?;
@@ -206,22 +296,23 @@ impl Parser {
                         },
                         Token::Whitespace => self.pop()?,
                         t => {
-                            error!("Unexpected token {:?}", t);
-                            return Err(())
+                            return Err(ParsingError::UnexpectedToken("parse:label:consume-line", t.clone(), location));
                         },
                     };
                 }
             };
-            return Err(())
+            return Err(ParsingError::UnexpectedToken("parse:label:end-label", token.clone(), location));
         }
-        return Err(())
+        return Err(ParsingError::UnexpectedToken("parse:label:start", previous.clone(), location));
 
     }
 
-    fn try_parse_instruction(&mut self, previous: &Token) -> Result<Line, ()> {
+    fn try_parse_instruction(&mut self, previous: &Token) -> Result<Line, ParsingError> {
+        let start_location = self.lexer.location();
         if let Token::Alphanumeric(op) = previous {
             self.trim_whitespace()?;
 
+            let location = self.lexer.location();
             let second = match self.peek()? {
                 Token::Alphanumeric(p1) => {
                     let ret = p1.clone();
@@ -234,17 +325,19 @@ impl Parser {
                     ret
                 },
                 Token::Semicolon => {
-                    if let Line::Comment(comment) = self.try_parse_comment()? {
+                    let result = self.try_parse_comment()?;
+                    if let Line::Comment(comment) = result {
                         let instr = RawInstr {
                             operation: op.clone(),
                             arg1: None,
                             arg2: None,
-                            comment: Some(comment.clone()),
+                            _comment: Some(comment.clone()),
+                            location: start_location,
                         };
                         return Ok(Line::Instruction(instr));
                     }
                     // Something weird happened
-                    return Err(());
+                    return Err(ParsingError::Unknown(format!("expected parsed comment, received {:?}", result)));
                 },
                 Token::EOL | Token::EOF => {
                     self.pop()?;
@@ -252,15 +345,17 @@ impl Parser {
                         operation: op.clone(),
                         arg1: None,
                         arg2: None,
-                        comment: None,
+                        _comment: None,
+                        location: start_location,
                     };
                     return Ok(Line::Instruction(instr));
                 }
-                _ => return Err(()),
+                token => return Err(ParsingError::UnexpectedToken("parse:instruction:second", token.clone(), location)),
             };
 
             self.trim_whitespace()?;
 
+            let location = self.lexer.location();
             let third = match self.peek()? {
                 Token::Alphanumeric(p1) => {
                     let ret = p1.clone();
@@ -273,17 +368,19 @@ impl Parser {
                     ret
                 },
                 Token::Semicolon => {
-                    if let Line::Comment(comment) = self.try_parse_comment()? {
+                    let result = self.try_parse_comment()?;
+                    if let Line::Comment(comment) = result {
                         let instr = RawInstr {
                             operation: op.clone(),
                             arg1: Some(second),
                             arg2: None,
-                            comment: Some(comment.clone()),
+                            _comment: Some(comment.clone()),
+                            location: start_location,
                         };
                         return Ok(Line::Instruction(instr));
                     }
                     // Something weird happened
-                    return Err(());
+                    return Err(ParsingError::Unknown(format!("expected parsed comment, received {:?}", result)));
                 },
                 Token::EOL | Token::EOF => {
                     self.pop()?;
@@ -291,28 +388,31 @@ impl Parser {
                         operation: op.clone(),
                         arg1: Some(second),
                         arg2: None,
-                        comment: None,
+                        _comment: None,
+                        location: start_location,
                     };
                     return Ok(Line::Instruction(instr));
                 }
-                _ => return Err(()),
+                token => return Err(ParsingError::UnexpectedToken("parse:instruction:third", token.clone(), location)),
             };
 
             self.trim_whitespace()?;
-
+            let location = self.lexer.location();
             match self.peek()? {
                 Token::Semicolon => {
-                    if let Line::Comment(comment) = self.try_parse_comment()? {
+                    let result = self.try_parse_comment()?;
+                    if let Line::Comment(comment) = result {
                         let instr = RawInstr {
                             operation: op.clone(),
                             arg1: Some(second),
                             arg2: Some(third),
-                            comment: Some(comment.clone()),
+                            _comment: Some(comment.clone()),
+                            location: start_location,
                         };
                         return Ok(Line::Instruction(instr));
                     }
                     // Something weird happened
-                    return Err(());
+                    return Err(ParsingError::Unknown(format!("expected parsed comment, received {:?}", result)));
                 },
                 Token::EOL | Token::EOF => {
                     self.pop()?;
@@ -320,18 +420,19 @@ impl Parser {
                         operation: op.clone(),
                         arg1: Some(second),
                         arg2: Some(third),
-                        comment: None,
+                        _comment: None,
+                        location: start_location,
                     };
                     return Ok(Line::Instruction(instr));
                 }
-                _ => return Err(()),
+                token => return Err(ParsingError::UnexpectedToken("parse:instruction:end", token.clone(), location)),
             }
         }
         // Unexpected token start
-        return Err(())
+        return Err(ParsingError::Unknown(format!("failed to find complete instruction, starting with: {:?}", previous)));
     }
 
-    fn try_parse_line(&mut self) -> Result<Option<Line>, ()> {
+    fn try_parse_line(&mut self) -> Result<Option<Line>, ParsingError> {
         loop {
             // remove empty spaces and lines
             self.trim_whitespace()?;
@@ -346,6 +447,7 @@ impl Parser {
                 _ => break,
             };
         }
+        let location = self.lexer.location();
         let token = self.pop()?;
         match &token {
             Token::EOF => {
@@ -356,17 +458,15 @@ impl Parser {
             }
             Token::Alphanumeric(_) => {
                 if matches!(self.peek()?, Token::Colon) {
-                    return self.try_parse_label(&token).map(|v| Some(v));
+                    return self.try_parse_label(&token, location).map(|v| Some(v));
                 }
                 return self.try_parse_instruction(&token).map(|v| Some(v));
             }
-            _ => {
-                return Err(());
-            }
+            token => return Err(ParsingError::UnexpectedToken("parse:line", token.clone(), location)),
         }
     }
 
-    pub fn parse(&mut self) -> Result<Assembly, ()> {
+    pub fn parse(&mut self) -> Result<Assembly, ParsingError> {
         let mut lines = Vec::new();
 
         loop {
@@ -385,7 +485,7 @@ impl Parser {
         for i in &instructions {
             if let Some(label) = &i.label {
                 if !labels.contains_key(label) {
-                    return Err(())
+                    return Err(ParsingError::MissingReferencedLabel(label.clone()));
                 }
             }
         }
@@ -394,7 +494,7 @@ impl Parser {
     }
 }
 
-fn convert_to_instructions(lines: Vec<Line>) -> Result<(Vec<ParsedInstruction>, HashMap<String, usize>), ()> {
+fn convert_to_instructions(lines: Vec<Line>) -> Result<(Vec<ParsedInstruction>, HashMap<String, usize>), ParsingError> {
     // Filter comments
     let lines: Vec<&Line> = lines.iter()
         .filter(|l| !l.is_comment())
@@ -418,8 +518,8 @@ fn convert_to_instructions(lines: Vec<Line>) -> Result<(Vec<ParsedInstruction>, 
             Line::Label(label) => {
                 labels.insert(label.clone(), instr_cursor);
             },
-            _ => {
-                return Err(())
+            line => {
+                return Err(ParsingError::Unknown(format!("Failed to create instruction or label from {:?}", line)));
             }
         };
         cursor += 1;
