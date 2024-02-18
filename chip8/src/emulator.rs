@@ -14,6 +14,7 @@ use crate::instructions::Instruction;
 pub enum Chip8Error {
     UnimplementedInstruction,
     InvalidOpcode(String),
+    StackEmpty,
 }
 
 impl fmt::Display for Chip8Error {
@@ -29,14 +30,13 @@ pub const MEMSIZE: usize = 4096;
 pub const START_ADDR: usize = 0x200;
 
 pub const REGISTRY_COUNT: usize = 16;
-pub const STACK_SIZE: usize = 16;
+pub const STACK_SIZE: usize = 32;
 
 pub struct Emulator {
     memory: [u8; MEMSIZE],
     registries: [u8; REGISTRY_COUNT],
     program_counter: usize,
-    stack_pointer: u8,
-    stack: [u16; STACK_SIZE],
+    stack: Vec<usize>,
 }
 
 impl Emulator {
@@ -45,8 +45,7 @@ impl Emulator {
             memory: [0; MEMSIZE],
             registries: [0; REGISTRY_COUNT],
             program_counter: START_ADDR,
-            stack_pointer: 0,
-            stack: [0; STACK_SIZE],
+            stack: Vec::with_capacity(STACK_SIZE),
         }
     }
 
@@ -57,8 +56,7 @@ impl Emulator {
         self.memory = [0; MEMSIZE];
         self.registries = [0; REGISTRY_COUNT];
         self.program_counter = START_ADDR;
-        self.stack_pointer = 0;
-        self.stack = [0; STACK_SIZE];
+        self.stack = Vec::with_capacity(STACK_SIZE);
     }
 
     pub fn load<T: Read>(&mut self, mut reader: T) -> Result<(), Box<dyn Error>> {
@@ -130,10 +128,18 @@ impl Emulator {
                 // Currently noop
             },
             Instruction::Return => {
-                todo!();
+                match self.stack.pop() {
+                    Some(addr) => {
+                        self.program_counter = addr;
+                    },
+                    None => {
+                        return Err(Chip8Error::StackEmpty.into());
+                    },
+                };
             },
             Instruction::Call(addr) => {
-                todo!();
+                self.stack.push(self.program_counter);
+                self.program_counter = addr.value() as usize;
             },
             Instruction::Jump(addr) => {
                 self.program_counter = addr.value() as usize;
@@ -178,7 +184,6 @@ impl Emulator {
         println!("");
 
         println!("PC: {:04x}", self.program_counter);
-        println!("SP: {:02x}", self.stack_pointer);
         println!("");
 
         let mut regstr = "regs: ".to_string();
@@ -245,5 +250,29 @@ mod test {
         );
         assert_eq!(reg_value(&e, 1), 4);
         assert_eq!(reg_value(&e, 2), 16);
+    }
+
+    #[test]
+    fn test_call_ret() {
+        let e = create_execute("
+        main:
+            mov r1 0
+            add r1 2
+            call func1
+            call func2
+            call func1
+            abort
+
+        func1:
+            add r1 4
+            call func2
+            ret
+        
+        func2:
+            add r1 2
+            ret"
+        );
+        assert_eq!(reg_value(&e, 1), 16);
+
     }
 }

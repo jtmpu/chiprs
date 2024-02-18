@@ -9,7 +9,7 @@ use std::error::Error;
 use std::io::{Read, self};
 use std::num::ParseIntError;
 
-const BUFFER_SIZE: usize = 256;
+const BUFFER_SIZE: usize = 128;
 
 #[derive(Debug)]
 pub enum LexerError {
@@ -96,15 +96,15 @@ impl<T: Read> StreamLexer<T> {
         Ok(())
     }
 
-    fn peek(&self) -> char {
-        self.buffer[self.cursor] as char
-    }
-
-    fn pop(&mut self) -> Result<char, LexerError> {
+    fn peek(&mut self) -> Result<char, LexerError> {
         if self.is_buffer_end() {
             self.load()?;
         }
-        let ret = self.peek();
+        Ok(self.buffer[self.cursor] as char)
+    }
+
+    fn pop(&mut self) -> Result<char, LexerError> {
+        let ret = self.peek()?;
         self.cursor += 1;
         self.column += 1;
 
@@ -118,7 +118,7 @@ impl<T: Read> StreamLexer<T> {
                 break;
             }
 
-            if pred(self.peek()) {
+            if pred(self.peek()?) {
                 chars.push(self.pop()?);
             } else {
                 break;
@@ -179,7 +179,7 @@ impl<T: Read> Lexer for StreamLexer<T> {
                 Token::EOL
             },
             b if b == '\r' => {
-                if self.peek() as char == '\n' {
+                if self.peek()? as char == '\n' {
                     self.pop()?;
                     self.line += 1;
                     self.column = 0;
