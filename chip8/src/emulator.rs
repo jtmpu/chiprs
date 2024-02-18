@@ -185,10 +185,15 @@ impl Emulator {
         println!("Emulator state:");
         println!("");
 
-        println!("Next instruction: {:?}", self.instruction());
+        println!("program-counter: {:04x}", self.program_counter);
+        println!(" - instruction: {:?}", self.instruction());
         println!("");
 
-        println!("PC: {:04x}", self.program_counter);
+        println!("stack:");
+        println!(" - stack-pointer: {}", self.stack_pointer);
+        for index in (0..self.stack_pointer).rev() {
+            println!("  [{}]: 0x{:04x}", index, self.stack[index]);
+        }
         println!("");
 
         let mut regstr = "regs: ".to_string();
@@ -278,6 +283,5 @@ mod test {
             ret"
         );
         assert_eq!(reg_value(&e, 1), 16);
-
     }
 }
