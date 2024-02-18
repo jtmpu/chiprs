@@ -93,8 +93,12 @@ pub enum Instruction {
     Abort,
     /// 00e0
     Clear,
+    /// 00EE - return from subroutine
+    Return,
     /// 1nnn - Jump to addr nnn
     Jump(u12),
+    /// 2nnn - Call subroutine at nnn
+    Call(u12),
     /// 4xkk - Skip next instruction if Vx != kk
     SkipNotEqual(u4, u8),
     /// 6xkk - Set Vx = kk
@@ -118,9 +122,16 @@ impl Instruction {
             (0x00, 0x00, 0xe0, 0x00) => {
                 Some(Self::Clear)
             },
+            (0x00, 0x00, 0xe0, 0x0e) => {
+                Some(Self::Return)
+            },
             (0x10, _, _, _) => {
                 let address = u12::from_bytes(upper, lower);
                 Some(Self::Jump(address))
+            },
+            (0x20, _, _, _) => {
+                let address = u12::from_bytes(upper, lower);
+                Some(Self::Call(address))
             },
             (0x40, _, _, _) => {
                 let register = u4::little(upper);
@@ -151,7 +162,9 @@ impl Instruction {
         match self {
             Self::Abort => 0xdead,
             Self::Clear => 0x00e0,
+            Self::Return => 0x00ee,
             Self::Jump(addr) => 0x1000 | addr.value(),
+            Self::Call(addr) => 0x2000 | addr.value(),
             Self::SkipNotEqual(reg, value) => {
                 let big: u16 = 0x40 | (reg.value() as u16);
                 let small: u16 = *value as u16;
@@ -179,7 +192,9 @@ impl Instruction {
         match self {
             Self::Abort => format!("abort"),
             Self::Clear => format!("clear"),
+            Self::Return => format!("ret"),
             Self::Jump(addr) => format!("jmp {}", addr.value()),
+            Self::Call(addr) => format!("call {}", addr.value()),
             Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),
             Self::Move(reg, value) => format!("mov r{} {}", reg.value(), value),
             Self::Add(reg, value) => format!("add r{} {}", reg.value(), value),
@@ -225,7 +240,9 @@ mod tests {
         let cases: Vec<(u16, Instruction)> = vec![
             (0xDEAD, Instruction::Abort),
             (0x00E0, Instruction::Clear),
+            (0x00EE, Instruction::Return),
             (0x1BFD, Instruction::Jump(u12::from_u16(0xBFD))),
+            (0x2ABC, Instruction::Call(u12::from_u16(0xABC))),
             (0x61FF, Instruction::Move(u4::little(0x01), 0xFF)),
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
             (0x42EC, Instruction::SkipNotEqual(u4::little(0x02), 0xEC)),
@@ -245,8 +262,10 @@ mod tests {
     fn test_instruction_to_opcode() {
         let cases: Vec<(Instruction, u16)> = vec![
             (Instruction::Abort, 0xDEAD),
-            (Instruction::Clear, 0x00e0),
+            (Instruction::Clear, 0x00E0),
+            (Instruction::Return, 0x00EE),
             (Instruction::Jump(0x123.into()), 0x1123),
+            (Instruction::Call(0x321.into()), 0x2321),
             (Instruction::Move(0x02.into(), 0x42), 0x6242),
             (Instruction::Add(0x04.into(), 0x2), 0x7402),
             (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),

@@ -24,6 +24,18 @@ impl Assembly {
         for instr in &self.instructions {
             // Check if we need to resolve labels
             let instruction = match instr.instruction {
+                Instruction::Call(a) => {
+                    if let Some(label) = &instr.label {
+                        if let Some(offset) = self.labels.get(label) {
+                            let address: u12 = ((START_ADDR + (offset * 2)) as u16).into();
+                            Instruction::Call(address)
+                        } else {
+                            return Err(BinaryError::MissingLabelAddress(label.clone()));
+                        }
+                    } else {
+                        Instruction::Call(a)
+                    }
+                },
                 Instruction::Jump(a) => {
                     if let Some(label) = &instr.label {
                         if let Some(offset) = self.labels.get(label) {
@@ -88,8 +100,13 @@ mod test {
                 source: None,
             },
             ParsedInstruction {
-                instruction: Instruction::SkipNotEqual(2.into(), 3),
+                instruction: Instruction::Call(0.into()),
                 label: Some("loop".to_string()),
+                source: None,
+            },
+            ParsedInstruction {
+                instruction: Instruction::SkipNotEqual(2.into(), 3),
+                label: None,
                 source: None,
             },
             ParsedInstruction {
@@ -120,25 +137,27 @@ mod test {
         ];
         let mut labels = HashMap::new();
         labels.insert("main".to_string(), 0);
-        labels.insert("loop".to_string(), 2);
-        labels.insert("exit".to_string(), 7);
+        labels.insert("loop".to_string(), 3);
+        labels.insert("exit".to_string(), 8);
         let assembly = Assembly {
             instructions,
             labels,
         };
         let binary = assembly.binary().unwrap();
-        assert_addr(binary.as_ref(), 3, 0x20e.into());
-        assert_addr(binary.as_ref(), 6, 0x204.into());
+        assert_addr(binary.as_ref(), 2, 0x206.into());
+        assert_addr(binary.as_ref(), 4, 0x210.into());
+        assert_addr(binary.as_ref(), 7, 0x206.into());
     }
 
     fn assert_addr(binary: &[u8], location: usize, addr: u12) {
         let b1 = binary[location * 2];
         let b2 = binary[location * 2 + 1];
         let instr = Instruction::from_opcode_u8(b1, b2).unwrap();
-        if let Instruction::Jump(x) = instr {
-            assert_eq!(x, addr, "expected addr '0x{:04x}', received '0x{:04x}'", addr.value(), x.value());
-        } else {
-            panic!("invalid opcode");
-        }
+        let a = match instr {
+            Instruction::Jump(a) => a,
+            Instruction::Call(a) => a,
+            _ => panic!("invalid opcode"),
+        };
+        assert_eq!(a, addr, "expected addr '0x{:04x}', received '0x{:04x}'", addr.value(), a.value());
     }
 }

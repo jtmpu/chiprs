@@ -129,6 +129,12 @@ impl Emulator {
             Instruction::Clear => {
                 // Currently noop
             },
+            Instruction::Return => {
+                todo!();
+            },
+            Instruction::Call(addr) => {
+                todo!();
+            },
             Instruction::Jump(addr) => {
                 self.program_counter = addr.value() as usize;
             },
@@ -148,7 +154,7 @@ impl Emulator {
                 let vx = self.registries[regx.value() as usize];
                 let vy = self.registries[regy.value() as usize];
                 self.registries[regx.value() as usize] = vx | vy;
-            }
+            },
         };
         Ok(true)
     }
@@ -180,5 +186,64 @@ impl Emulator {
             regstr.push_str(format!(" r{}:{:02x}", index, reg).as_str());
         }
         println!("{}", regstr);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use std::io::{BufReader, Cursor};
+    use crate::assembly::parser::Parser;
+    use crate::assembly::lexer::StreamLexer;
+
+    fn create_execute(input: &'static str) -> Emulator {
+        let reader = BufReader::new(input.as_bytes());
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
+        let binary = parser
+            .parse().unwrap()
+            .binary().unwrap();
+        let mut emulator = Emulator::new();
+        let cursor = Cursor::new(binary);
+        emulator.load(cursor).unwrap();
+        emulator.run();
+        emulator
+    }
+
+    fn reg_value(emu: &Emulator, index: usize) -> u8 {
+        emu.registries[index]
+    }
+
+    #[test]
+    fn test_add() {
+        let e = create_execute("
+            mov r2 1
+            mov r1 0
+            add r1 2
+            add r1 10
+            add r2 4
+            abort"
+        );
+        assert_eq!(reg_value(&e, 1), 12);
+        assert_eq!(reg_value(&e, 2), 5);
+    }
+
+    #[test]
+    fn test_branch_jmp_sne() {
+        let e = create_execute("
+            mov r1 0
+            add r2 0
+        loop:
+            sne r1 4
+            jmp exit
+            add r1 1
+            add r2 4
+            jmp loop
+        exit:
+            abort"
+        );
+        assert_eq!(reg_value(&e, 1), 4);
+        assert_eq!(reg_value(&e, 2), 16);
     }
 }

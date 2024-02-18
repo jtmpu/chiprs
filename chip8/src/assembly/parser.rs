@@ -142,6 +142,51 @@ impl RawInstr {
                 }
                 Instruction::Clear
             },
+            "ret" => {
+                if let Some(v) = &self.arg1 {
+                    return Err(ParsingError::ArgumentError("ret", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError("ret", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
+                Instruction::Return
+            },
+            "call" => {
+                let addr = if let Some(s) = self.arg1.as_ref() {
+                    match RawInstr::parse_as_address(self.arg1.as_ref()) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            // No integer found, this must be a label
+                            label = Some(s.clone());
+                            0.into()
+                        }
+                    } 
+                } else {
+                    return Err(ParsingError::ArgumentError("call", self.location, ArgumentError::MissingArgument));
+                };
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError("call", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
+                Instruction::Call(addr)
+            },
+            "jmp" => {
+                let addr = if let Some(s) = self.arg1.as_ref() {
+                    match RawInstr::parse_as_address(self.arg1.as_ref()) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            // No integer found, this must be a label
+                            label = Some(s.clone());
+                            0.into()
+                        }
+                    } 
+                } else {
+                    return Err(ParsingError::ArgumentError("jmp", self.location, ArgumentError::MissingArgument));
+                };
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError("jmp", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
+                Instruction::Jump(addr)
+            },
             "sne" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
@@ -169,24 +214,6 @@ impl RawInstr {
                 let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("or", self.location, e))?;
                 Instruction::Or(regx_index, regy_index)
-            },
-            "jmp" => {
-                let addr = if let Some(s) = self.arg1.as_ref() {
-                    match RawInstr::parse_as_address(self.arg1.as_ref()) {
-                        Ok(v) => v,
-                        Err(_) => {
-                            // No integer found, this must be a label
-                            label = Some(s.clone());
-                            0.into()
-                        }
-                    } 
-                } else {
-                    return Err(ParsingError::ArgumentError("jmp", self.location, ArgumentError::MissingArgument));
-                };
-                if let Some(v) = &self.arg2 {
-                    return Err(ParsingError::ArgumentError("jmp", self.location, ArgumentError::UnexpectedArgument(v.clone())));
-                }
-                Instruction::Jump(addr)
             },
             instr => {
                 return Err(ParsingError::UnknownInstruction(instr.to_string(), self.location));
@@ -645,6 +672,30 @@ mod test {
             "abort",
             vec![
                 Instruction::Abort,
+            ].iter()
+                .map(|e| ParsedInstruction::new(e.clone()))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_ret() {
+        parse_and_assert(
+            "ret",
+            vec![
+                Instruction::Return,
+            ].iter()
+                .map(|e| ParsedInstruction::new(e.clone()))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_call() {
+        parse_and_assert(
+            "call 123",
+            vec![
+                Instruction::Call(123.into()),
             ].iter()
                 .map(|e| ParsedInstruction::new(e.clone()))
                 .collect(),
