@@ -1,12 +1,13 @@
 
 use std::fs::File;
-use std::io::{self, BufReader, Write};
+use std::io::{self, BufReader, Write, Read};
 
 use clap::{Parser, Subcommand, Args};
 use tracing::{Level, error};
 
 use chip8;
 use chip8::assembly::lexer::Lexer;
+use chip8::instructions::Instruction;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -29,10 +30,23 @@ struct CliArgs {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Asm(AssemblyCommands),
+    Disasm(DisassembleCommands),
 }
 
 #[derive(Debug, Args)]
 struct AssemblyCommands {
+    #[arg(short, long)]
+    input: Option<String>,
+
+    #[arg(short, long)]
+    ast: bool,
+
+    #[arg(short, long)]
+    output: Option<String>,
+}
+
+#[derive(Debug, Args)]
+struct DisassembleCommands {
     #[arg(short, long)]
     input: Option<String>,
 
@@ -84,6 +98,9 @@ fn main() {
         Some(Commands::Asm(a)) => {
             run_assembler(a, &args);
         },
+        Some(Commands::Disasm(a)) => {
+            run_disassembler(a, &args);
+        },
         None => {},
     };
 }
@@ -124,3 +141,50 @@ fn run_assembler(args: &AssemblyCommands, _global_args: &CliArgs) {
     }
 }
 
+fn run_disassembler(args: &DisassembleCommands, _global_args: &CliArgs) {
+    let mut reader: Box<dyn Read> = if let Some(f) = &args.input {
+        Box::new(File::open(f).unwrap())
+    } else {
+        Box::new(BufReader::new(io::stdin()))
+    };
+    
+    let mut buffer: Vec<u8> = Vec::new();
+    reader.read_to_end(&mut buffer).unwrap();
+
+    let mut cursor = 0;
+    let mut instructions: Vec<Instruction> = Vec::new();
+    loop {
+        if cursor >= buffer.len() || cursor + 1 >= buffer.len() {
+            break;
+        }
+        let b1 = buffer[cursor];
+        let b2 = buffer[cursor + 1];
+        match Instruction::from_opcode_u8(b1, b2) {
+            Some(i) => instructions.push(i),
+            None => {
+                error!("unknown opcode '0x{:02x}{:02x}'", b1, b2);
+            }
+
+        };
+        cursor += 2;
+    }
+
+    if args.ast {
+        for i in instructions {
+            println!("{:?}", i);
+        }
+        return;
+    }
+
+    let mut writer: Box<dyn Write> = if let Some(f) = &args.output {
+        Box::new(File::create(f).unwrap())
+    } else {
+        Box::new(io::stdout())
+    };
+
+    for i in instructions {
+        let mut asm = i.to_assembly();
+        asm.push_str("\n");
+        writer.write_all(asm.as_bytes()).unwrap();
+    }
+}

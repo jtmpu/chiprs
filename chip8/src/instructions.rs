@@ -158,6 +158,16 @@ impl Instruction {
             },
         }
     }
+
+    pub fn to_assembly(&self) -> String {
+        match self {
+            Self::Clear => format!("clear"),
+            Self::Jump(addr) => format!("jmp {}", addr.value()),
+            Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),
+            Self::Move(reg, value) => format!("mov r{} {}", reg.value(), value),
+            Self::Add(reg, value) => format!("add r{} {}", reg.value(), value),
+        }
+    }
 }
 
 #[cfg(test)]
