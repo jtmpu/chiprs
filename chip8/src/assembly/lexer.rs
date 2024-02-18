@@ -1,6 +1,8 @@
 //!
 //! # Chip-8 lexer
 //!
+//! Parses a byte stream into tokens, for easier processing in the parser stages. 
+//!
 
 use std::fmt;
 use std::error::Error;
