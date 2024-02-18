@@ -137,6 +137,9 @@ impl Instruction {
                 let value = lower;
                 Some(Self::Add(register, value))
             },
+            (0x80, regx, regy, 0x01) => {
+                Some(Self::Or(regx.into(), (regy >> 4).into()))
+            },
             (0xD0, 0x0E, 0xA0, 0x0D) => {
                 Some(Self::Abort)
             },
@@ -226,6 +229,7 @@ mod tests {
             (0x61FF, Instruction::Move(u4::little(0x01), 0xFF)),
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
             (0x42EC, Instruction::SkipNotEqual(u4::little(0x02), 0xEC)),
+            (0x8121, Instruction::Or(0x01.into(), 0x02.into())),
         ];
 
         for case in cases {
@@ -246,6 +250,7 @@ mod tests {
             (Instruction::Move(0x02.into(), 0x42), 0x6242),
             (Instruction::Add(0x04.into(), 0x2), 0x7402),
             (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),
+            (Instruction::Or(0x02.into(), 0x03.into()), 0x8231),
         ];
         for case in cases {
             let opcode = case.0.opcode();
