@@ -35,6 +35,7 @@ struct RawInstr {
 
 impl RawInstr {
     fn try_to_instruction(&self) -> Result<ParsedInstruction, ()> {
+        let mut label: Option<String> = None;
         let instruction = match self.operation.as_str() {
             "clear" => {
                 if let Some(v) = &self.arg1 {
@@ -61,7 +62,18 @@ impl RawInstr {
                 Instruction::Add(reg_index, value)
             },
             "jmp" => {
-                let addr = RawInstr::parse_as_address(self.arg1.as_ref())?;
+                let addr = if let Some(s) = self.arg1.as_ref() {
+                    match RawInstr::parse_as_address(self.arg1.as_ref()) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            // No integer found, this must be a label
+                            label = Some(s.clone());
+                            0.into()
+                        }
+                    } 
+                } else {
+                    return Err(())
+                };
                 if let Some(v) = &self.arg2 {
                     return Err(())
                 }
@@ -71,7 +83,13 @@ impl RawInstr {
                 return Err(())
             }
         };
-        Ok(ParsedInstruction::new(instruction))
+        println!("{:?}, {:?}", instruction, label);
+        let parsed = ParsedInstruction {
+            instruction,
+            label,
+            source: None,
+        };
+        Ok(parsed)
     }
     fn parse_as_registry(arg: Option<&String>) -> Result<u4, ()> {
         let value = if let Some(value) = arg {
@@ -363,6 +381,15 @@ impl<T: Read> Parser<T> {
         }
 
         let (instructions, labels) = convert_to_instructions(lines)?;
+
+        // Check for non-existent addresses
+        for i in &instructions {
+            if let Some(label) = &i.label {
+                if !labels.contains_key(label) {
+                    return Err(())
+                }
+            }
+        }
 
         Ok(Assembly { instructions, labels })
     }
