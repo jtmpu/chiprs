@@ -15,11 +15,12 @@ pub enum Chip8Error {
     UnimplementedInstruction,
     InvalidOpcode(String),
     StackEmpty,
+    StackFull,
 }
 
 impl fmt::Display for Chip8Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "chip-8 failure")
+        write!(f, "chip-8 failure: {:?}", self)
     }
 }
 impl Error for Chip8Error {
@@ -36,7 +37,8 @@ pub struct Emulator {
     memory: [u8; MEMSIZE],
     registries: [u8; REGISTRY_COUNT],
     program_counter: usize,
-    stack: Vec<usize>,
+    stack_pointer: usize,
+    stack: [usize; STACK_SIZE],
 }
 
 impl Emulator {
@@ -45,7 +47,8 @@ impl Emulator {
             memory: [0; MEMSIZE],
             registries: [0; REGISTRY_COUNT],
             program_counter: START_ADDR,
-            stack: Vec::with_capacity(STACK_SIZE),
+            stack_pointer: 0,
+            stack: [0; STACK_SIZE],
         }
     }
 
@@ -56,7 +59,8 @@ impl Emulator {
         self.memory = [0; MEMSIZE];
         self.registries = [0; REGISTRY_COUNT];
         self.program_counter = START_ADDR;
-        self.stack = Vec::with_capacity(STACK_SIZE);
+        self.stack_pointer = 0;
+        self.stack = [0; STACK_SIZE];
     }
 
     pub fn load<T: Read>(&mut self, mut reader: T) -> Result<(), Box<dyn Error>> {
@@ -128,17 +132,18 @@ impl Emulator {
                 // Currently noop
             },
             Instruction::Return => {
-                match self.stack.pop() {
-                    Some(addr) => {
-                        self.program_counter = addr;
-                    },
-                    None => {
-                        return Err(Chip8Error::StackEmpty.into());
-                    },
-                };
+                if self.stack_pointer <= 0 {
+                    return Err(Chip8Error::StackEmpty.into());
+                }
+                self.stack_pointer -= 1;
+                self.program_counter = self.stack[self.stack_pointer];
             },
             Instruction::Call(addr) => {
-                self.stack.push(self.program_counter);
+                if self.stack_pointer >= STACK_SIZE {
+                    return Err(Chip8Error::StackFull.into());
+                }
+                self.stack[self.stack_pointer] = self.program_counter;
+                self.stack_pointer += 1;
                 self.program_counter = addr.value() as usize;
             },
             Instruction::Jump(addr) => {
