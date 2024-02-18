@@ -17,6 +17,8 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
+    #[arg(short, long, default_value_t = 20)]
+    ticks: usize,
     
     #[clap(long)]
     #[clap(help = "message format for logging")]
@@ -85,7 +87,7 @@ fn main() {
             return;
         }
     }
-    for _ in 1..32 {
+    for _ in 1..args.ticks {
         emulator.tick().unwrap();
     }
     emulator.dump_state();
