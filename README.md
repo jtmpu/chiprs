@@ -7,6 +7,8 @@
 
 ## Examples
 
+Pipe outputs of the asm/disasm operations into each other, or emulator to execute the binary later on
+
 ```
 user@rust:~/rust/chiprs$ cargo run --bin assembly -- asm -i assembly/examples/abort.asm | cargo run --bin assembly -- disasm | cargo run --bin assembly -- asm | cargo run --bin emulator
 Emulator state:
