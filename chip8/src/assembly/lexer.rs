@@ -2,10 +2,64 @@
 //! # Chip-8 lexer
 //!
 
-use std::io::Read;
+use std::fmt;
+use std::error::Error;
+use std::io::{Read, self};
+use std::num::ParseIntError;
 
 const BUFFER_SIZE: usize = 256;
-pub struct Lexer<T: Read> {
+
+#[derive(Debug)]
+pub enum LexerError {
+    IO(io::Error),
+    IntegerParsing(ParseIntError),
+}
+
+impl fmt::Display for LexerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            LexerError::IO(ref err) => err.fmt(f),
+            LexerError::IntegerParsing(ref err) => err.fmt(f),
+        }
+    }
+}
+
+impl Error for LexerError {
+}
+
+impl From<io::Error> for LexerError {
+    fn from(err: io::Error) -> LexerError {
+        LexerError::IO(err)
+    }
+}
+
+impl From<ParseIntError> for LexerError {
+    fn from(err: ParseIntError) -> LexerError {
+        LexerError::IntegerParsing(err)
+    }
+}
+
+/// Allows for reading and iterating tokens from a stream of bytes
+pub trait Lexer {
+    fn next(&mut self) -> Result<Token, LexerError>;
+    fn location(&self) -> (usize, usize);
+
+    fn line(&self) -> usize {
+        let (line, _) = self.location();
+        line
+    }
+
+    fn column(&self) -> usize {
+        let (_, column) = self.location();
+        column
+    }
+}
+
+
+/// Simple stream lexer, which only maintains a set buffer of bytes
+/// at a time. Can be used to lex over any stream which has implemented
+/// the Read trait.
+pub struct StreamLexer<T: Read> {
     reader: T,
     buffer: [u8; BUFFER_SIZE],
     cursor: usize,
@@ -14,7 +68,7 @@ pub struct Lexer<T: Read> {
     column: usize,
 }
 
-impl<T: Read> Lexer<T> {
+impl<T: Read> StreamLexer<T> {
     pub fn new(reader: T) -> Self { 
         Self {
             reader,
@@ -34,11 +88,8 @@ impl<T: Read> Lexer<T> {
         self.is_buffer_end() && self.buffer_size < BUFFER_SIZE
     }
 
-    fn load(&mut self) -> Result<(), ()> {
-        self.buffer_size = match self.reader.read(&mut self.buffer) {
-            Ok(n) => n,
-            Err(_) => return Err(()),
-        };
+    fn load(&mut self) -> Result<(), LexerError> {
+        self.buffer_size = self.reader.read(&mut self.buffer)?;
         self.cursor = 0;
         Ok(())
     }
@@ -47,7 +98,7 @@ impl<T: Read> Lexer<T> {
         self.buffer[self.cursor] as char
     }
 
-    fn pop(&mut self) -> Result<char, ()> {
+    fn pop(&mut self) -> Result<char, LexerError> {
         if self.is_buffer_end() {
             self.load()?;
         }
@@ -58,7 +109,7 @@ impl<T: Read> Lexer<T> {
         Ok(ret as char)
     }
 
-    fn collect(&mut self, first: char, pred: fn(char) -> bool) -> Result<Vec<char>, ()> {
+    fn collect(&mut self, first: char, pred: fn(char) -> bool) -> Result<Vec<char>, LexerError> {
         let mut chars: Vec<char> = vec![first];
         loop {
             if self.is_stream_end() {
@@ -74,7 +125,39 @@ impl<T: Read> Lexer<T> {
         Ok(chars)
     }
 
-    pub fn next(&mut self) -> Result<Token, ()> {
+
+    pub fn all(&mut self) -> Result<Vec<Token>, LexerError> {
+        let mut tokens = vec![];
+        loop {
+            let token = self.next()?;
+            if matches!(token, Token::EOF) {
+                tokens.push(Token::EOF);
+                break;
+            }
+            tokens.push(token);
+        }
+        Ok(tokens)
+    }
+
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
+    pub fn column(&self) -> usize {
+        self.column
+    }
+
+    pub fn location(&self) -> (usize, usize) {
+        (self.line, self.column)
+    }
+}
+
+impl<T: Read> Lexer for StreamLexer<T> {
+    fn location(&self) -> (usize, usize) {
+        (self.line, self.column)
+    }
+
+    fn next(&mut self) -> Result<Token, LexerError> {
         if self.is_stream_end() {
             return Ok(Token::EOF);
         }
@@ -108,7 +191,7 @@ impl<T: Read> Lexer<T> {
                 let number: String = self.collect(b, |e| e.is_ascii_digit())?
                     .into_iter()
                     .collect();
-                let integer: usize = number.parse().map_err(|_| ())?;
+                let integer: usize = number.parse()?;
                 Token::Integer(integer)
             },
             b if b.is_ascii_alphanumeric() => {
@@ -120,31 +203,6 @@ impl<T: Read> Lexer<T> {
             b => Token::Unknown(b as u8),
         };
         Ok(token)
-    }
-
-    pub fn all(&mut self) -> Result<Vec<Token>, ()> {
-        let mut tokens = vec![];
-        loop {
-            let token = self.next()?;
-            if matches!(token, Token::EOF) {
-                tokens.push(Token::EOF);
-                break;
-            }
-            tokens.push(token);
-        }
-        Ok(tokens)
-    }
-
-    pub fn line(&self) -> usize {
-        self.line
-    }
-
-    pub fn column(&self) -> usize {
-        self.column
-    }
-
-    pub fn location(&self) -> (usize, usize) {
-        (self.line, self.column)
     }
 }
 
@@ -172,7 +230,7 @@ mod tests {
     use std::io::BufReader;
 
     fn lex_and_assert(input: &str, expected: Vec<Token>) {
-        let mut lexer = Lexer::new(BufReader::new(input.as_bytes()));
+        let mut lexer = StreamLexer::new(BufReader::new(input.as_bytes()));
         let result = lexer.all().unwrap();
         for (e, r) in (&expected).into_iter().zip(&result) {
             assert_eq!(e, r, "Expected '{:?}', got '{:?}'", expected, result);
@@ -182,7 +240,7 @@ mod tests {
     #[test]
     fn line_counter() {
         let input = "1\n2\r\n3";
-        let mut lexer = Lexer::new(BufReader::new(input.as_bytes()));
+        let mut lexer = StreamLexer::new(BufReader::new(input.as_bytes()));
         assert_eq!(lexer.line(), 0);
         assert_eq!(lexer.next().unwrap(), Token::Integer(1));
         assert_eq!(lexer.line(), 0);
@@ -200,7 +258,7 @@ mod tests {
     #[test]
     fn column_counter() {
         let input = "1 abc 32";
-        let mut lexer = Lexer::new(BufReader::new(input.as_bytes()));
+        let mut lexer = StreamLexer::new(BufReader::new(input.as_bytes()));
         assert_eq!(lexer.column(), 0);
         assert_eq!(lexer.next().unwrap(), Token::Integer(1));
         assert_eq!(lexer.column(), 1);
@@ -216,7 +274,7 @@ mod tests {
     #[test]
     fn line_and_column_counter8() {
         let input = "1 abc\n32 ewq";
-        let mut lexer = Lexer::new(BufReader::new(input.as_bytes()));
+        let mut lexer = StreamLexer::new(BufReader::new(input.as_bytes()));
         assert_eq!(lexer.location(), (0,0));
         assert_eq!(lexer.next().unwrap(), Token::Integer(1));
         assert_eq!(lexer.location(), (0,1));

@@ -138,16 +138,16 @@ impl Line {
     }
 }
 
-pub struct Parser<T: Read> {
-    lexer: Lexer<T>,
+pub struct Parser {
+    lexer: Box<dyn Lexer>,
     has_peeked: bool,
     peek: Token,
 }
 
-impl<T: Read> Parser<T> {
-    pub fn new(reader: T) -> Self {
+impl Parser {
+    pub fn new(lexer: Box<dyn Lexer>) -> Self {
         Self {
-            lexer: Lexer::new(reader),
+            lexer,
             peek: Token::EOF,
             has_peeked: false,
         }
@@ -158,7 +158,7 @@ impl<T: Read> Parser<T> {
             self.has_peeked = false;
             Ok(self.peek.clone())
         } else {
-            Ok(self.lexer.next()?)
+            Ok(self.lexer.next().map_err(|_| ())?)
         }
     }
 
@@ -432,9 +432,12 @@ mod test {
     use super::*;
     use std::io::BufReader;
 
-    fn parse_and_assert(input: &str, expected: Vec<ParsedInstruction>) {
+    use crate::assembly::lexer::StreamLexer;
+
+    fn parse_and_assert(input: &'static str, expected: Vec<ParsedInstruction>) {
         let reader = BufReader::new(input.as_bytes());
-        let mut parser = Parser::new(reader);
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
         for (e, r) in (&expected).into_iter().zip(&assembly.instructions) {
             assert_eq!(e, r);
@@ -510,7 +513,8 @@ mod test {
                 .map(|e| ParsedInstruction::new(e.clone()))
                 .collect();
         let reader = BufReader::new(input.as_bytes());
-        let mut parser = Parser::new(reader);
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
         for (e, r) in (&expected).into_iter().zip(&assembly.instructions) {
             assert_eq!(e, r);
@@ -555,7 +559,8 @@ other:
         ";
 
         let reader = BufReader::new(input.as_bytes());
-        let mut parser = Parser::new(reader);
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
         for (e, r) in (&expected).into_iter().zip(&assembly.instructions) {
             assert_eq!(e, r);

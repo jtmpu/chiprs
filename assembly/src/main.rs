@@ -6,6 +6,7 @@ use clap::{Parser, Subcommand, Args};
 use tracing::{error, span, Level};
 
 use chip8;
+use chip8::assembly::lexer::Lexer;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -33,7 +34,7 @@ enum Commands {
 #[derive(Debug, Args)]
 struct AssemblyCommands {
     #[arg(short, long)]
-    input: String,
+    input: Option<String>,
 
     #[arg(short, long)]
     ast: bool,
@@ -88,8 +89,16 @@ fn main() {
 }
 
 fn run_assembler(args: &AssemblyCommands, global_args: &CliArgs) {
-    let file = File::open(&args.input).unwrap();
-    let mut parser = chip8::assembly::parser::Parser::new(file);
+    let lexer: Box<dyn Lexer> = if let Some(f) = &args.input {
+        let file = File::open(f).unwrap();
+        let lexer = chip8::assembly::lexer::StreamLexer::new(file);
+        Box::new(lexer)
+    } else {
+        let reader = BufReader::new(io::stdin());
+        let lexer = chip8::assembly::lexer::StreamLexer::new(reader);
+        Box::new(lexer)
+    };
+    let mut parser = chip8::assembly::parser::Parser::new(lexer);
     let assembly = parser.parse().unwrap();
 
     if args.ast {
