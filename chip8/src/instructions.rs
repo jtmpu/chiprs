@@ -89,6 +89,8 @@ impl From<u16> for u12 {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Instruction {
+    /// 00ef - Custom code to make assembler exit gracefully
+    Abort,
     /// 00e0
     Clear,
     /// 1nnn - Jump to addr nnn
@@ -111,6 +113,9 @@ impl Instruction {
     /// Deconstructs the opcode into an instruction if possible
     pub fn from_opcode_u8(upper: u8, lower: u8) -> Option<Instruction> {
         match (upper & 0xF0, lower) {
+            (0x00, 0xef) => {
+                Some(Self::Abort)
+            },
             (0x00, 0xe0) => {
                 Some(Self::Clear)
             },
@@ -139,6 +144,7 @@ impl Instruction {
 
     pub fn opcode(&self) -> u16 {
         match self {
+            Self::Abort => 0x00ef,
             Self::Clear => 0x00e0,
             Self::Jump(addr) => 0x1000 | addr.value(),
             Self::SkipNotEqual(reg, value) => {
@@ -161,6 +167,7 @@ impl Instruction {
 
     pub fn to_assembly(&self) -> String {
         match self {
+            Self::Abort => format!("abort"),
             Self::Clear => format!("clear"),
             Self::Jump(addr) => format!("jmp {}", addr.value()),
             Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),
@@ -205,6 +212,8 @@ mod tests {
     #[test]
     fn test_instruction_from_opcode() {
         let cases: Vec<(u16, Instruction)> = vec![
+            (0x00EF, Instruction::Abort),
+            (0x00E0, Instruction::Clear),
             (0x1BFD, Instruction::Jump(u12::from_u16(0xBFD))),
             (0x61FF, Instruction::Move(u4::little(0x01), 0xFF)),
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
@@ -223,6 +232,7 @@ mod tests {
     #[test]
     fn test_instruction_to_opcode() {
         let cases: Vec<(Instruction, u16)> = vec![
+            (Instruction::Abort, 0x00ef),
             (Instruction::Clear, 0x00e0),
             (Instruction::Jump(0x123.into()), 0x1123),
             (Instruction::Move(0x02.into(), 0x42), 0x6242),

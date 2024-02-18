@@ -1,4 +1,4 @@
-use std::{path::Path, fs::File};
+use std::{path::Path, fs::File, io::Read, io};
 
 use chip8::emulator::Emulator;
 use clap::Parser;
@@ -9,7 +9,7 @@ use tracing::{error, span, Level};
 struct Args {
     /// File to load chip-8 binary from
     #[arg(short, long)]
-    file: String,
+    file: Option<String>,
 
     #[arg(short, long)]
     debug: bool,
@@ -17,8 +17,8 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
-    #[arg(short, long, default_value_t = 20)]
-    ticks: usize,
+    #[arg(short, long)]
+    ticks: Option<usize>,
     
     #[clap(long)]
     #[clap(help = "message format for logging")]
@@ -65,18 +65,23 @@ fn main() {
 
     let span = span!(Level::INFO, "emulator-bin:main");
     let _guard = span.enter();
-    let path = Path::new(args.file.as_str());
-    if !path.exists() {
-        error!("chip-8 bin file doesn't exist: {}", path.display()); 
-        return;
-    }
-
-    let reader = match File::open(path) {
-        Ok(r) => r,
-        Err(err) => {
-            error!(error = ?err, "failed to open chip-8 binary file");
+    let reader: Box<dyn Read> = if let Some(f) = &args.file {
+        let path = Path::new(f);
+        if !path.exists() {
+            error!("chip-8 bin file doesn't exist: {}", path.display()); 
             return;
         }
+
+        let reader = match File::open(path) {
+            Ok(r) => r,
+            Err(err) => {
+                error!(error = ?err, "failed to open chip-8 binary file");
+                return;
+            }
+        };
+        Box::new(reader)
+    } else {
+        Box::new(io::stdin()) 
     };
 
     let mut emulator = Emulator::new();
@@ -87,8 +92,12 @@ fn main() {
             return;
         }
     }
-    for _ in 1..args.ticks {
-        emulator.tick().unwrap();
+    if let Some(ticks) = args.ticks {
+        for _ in 1..ticks {
+            emulator.tick().unwrap();
+        }
+    } else {
+        emulator.run();
     }
     emulator.dump_state();
 }

@@ -90,7 +90,7 @@ impl Emulator {
         Ok(instruction)
     }
 
-    pub fn tick(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn tick(&mut self) -> Result<bool, Box<dyn Error>> {
         let span = span!(Level::INFO, "emulator.tick");
         let _guard = span.enter();
         let instruction = match self.instruction() {
@@ -105,20 +105,27 @@ impl Emulator {
             }
         };
         self.program_counter += 2;
-        if let Err(e) = self.execute(instruction) {
-            error!(
-                pc = self.program_counter,
-                error = ?e,
-                "failed to execute instruction"
-            );
-            return Err(e.into())
-        }
-        Ok(())
+        let res = match self.execute(instruction) {
+            Err(e) => {
+                error!(
+                    pc = self.program_counter,
+                    error = ?e,
+                    "failed to execute instruction"
+                );
+                return Err(e.into())
+            },
+            res => res,
+        };
+        res
     }
 
-    pub fn execute(&mut self, instruction: Instruction) -> Result<(), Box<dyn Error>> {
+    pub fn execute(&mut self, instruction: Instruction) -> Result<bool, Box<dyn Error>> {
         debug!(instruction = ?instruction, "executing instruction");
         match instruction {
+            Instruction::Abort => {
+                // Kill execution
+                return Ok(false);
+            },
             Instruction::Clear => {
                 // Currently noop
             },
@@ -138,7 +145,18 @@ impl Emulator {
                 self.registries[register.value() as usize] += value;
             },
         };
-        Ok(())
+        Ok(true)
+    }
+
+    /// Executes machine until abort opcode is called
+    pub fn run(&mut self) {
+        loop {
+            match self.tick() {
+                Ok(false) => break,
+                Err(_) => break,
+                _ => {},
+            }
+        }
     }
 
     pub fn dump_state(&self) {

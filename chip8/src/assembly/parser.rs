@@ -124,6 +124,15 @@ impl RawInstr {
     fn try_to_instruction(&self) -> Result<ParsedInstruction, ParsingError> {
         let mut label: Option<String> = None;
         let instruction = match self.operation.as_str() {
+            "abort" => {
+                if let Some(v) = &self.arg1 {
+                    return Err(ParsingError::ArgumentError("abort", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError("abort", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
+                Instruction::Abort
+            },
             "clear" => {
                 if let Some(v) = &self.arg1 {
                     return Err(ParsingError::ArgumentError("clear", self.location, ArgumentError::UnexpectedArgument(v.clone())));
