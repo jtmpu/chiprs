@@ -58,28 +58,34 @@ type Location = (usize, usize);
 #[derive(Debug)]
 pub enum ParsingError {
     Lexer(LexerError),
-    ArgumentError(&'static str, ArgumentError),
+    ArgumentError(&'static str, Location, ArgumentError),
     UnknownInstruction(String, Location),
     UnexpectedToken(&'static str, Token, Location),
     MissingReferencedLabel(String),
     Unknown(String),
 }
 
-
 impl fmt::Display for ParsingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Lexer(ref err) => err.fmt(f),
-            Self::ArgumentError(instruction, ref e) => {
-                write!(f, "Failed parsing instruction '{}', argument error: {}", instruction, e.to_string())
+            Self::ArgumentError(instruction, location, ref e) => {
+                write!(
+                    f, 
+                    "Failed parsing instruction '{}' (Loc: {},{}), argument error: {}", 
+                    instruction, 
+                    location.0, 
+                    location.1, 
+                    e.to_string()
+                )
             },
             Self::UnknownInstruction(ref instr, location) => {
-                write!(f, "Unknown instruction '{}' at L:{} COL:{}", instr, location.0, location.1)
+                write!(f, "Unknown instruction '{}' (Loc: {},{})", instr, location.0, location.1)
             },
             Self::UnexpectedToken(step, ref token, location) => {
                 write!(
                     f, 
-                    "Unexpected token '{}' (L:{} COL:{}) while processing step '{}'", 
+                    "Unexpected token '{}' (Loc: {},{}) while processing step '{}'", 
                     token, 
                     location.0, 
                     location.1, 
@@ -120,32 +126,32 @@ impl RawInstr {
         let instruction = match self.operation.as_str() {
             "clear" => {
                 if let Some(v) = &self.arg1 {
-                    return Err(ParsingError::ArgumentError("clear", ArgumentError::UnexpectedArgument(v.clone())));
+                    return Err(ParsingError::ArgumentError("clear", self.location, ArgumentError::UnexpectedArgument(v.clone())));
                 }
                 if let Some(v) = &self.arg2 {
-                    return Err(ParsingError::ArgumentError("clear", ArgumentError::UnexpectedArgument(v.clone())));
+                    return Err(ParsingError::ArgumentError("clear", self.location, ArgumentError::UnexpectedArgument(v.clone())));
                 }
                 Instruction::Clear
             },
             "sne" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("sne", e))?;
+                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
                 let value = RawInstr::parse_as_value(self.arg2.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("sne", e))?;
+                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
                 Instruction::SkipNotEqual(reg_index, value)
             }
             "mov" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("mov", e))?;
+                    .map_err(|e| ParsingError::ArgumentError("mov", self.location, e))?;
                 let value = RawInstr::parse_as_value(self.arg2.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("mov", e))?;
+                    .map_err(|e| ParsingError::ArgumentError("mov", self.location, e))?;
                 Instruction::Move(reg_index, value)
             },
             "add" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("add", e))?;
+                    .map_err(|e| ParsingError::ArgumentError("add", self.location, e))?;
                 let value = RawInstr::parse_as_value(self.arg2.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("add", e))?;
+                    .map_err(|e| ParsingError::ArgumentError("add", self.location, e))?;
                 Instruction::Add(reg_index, value)
             },
             "jmp" => {
@@ -159,10 +165,10 @@ impl RawInstr {
                         }
                     } 
                 } else {
-                    return Err(ParsingError::ArgumentError("jmp", ArgumentError::MissingArgument));
+                    return Err(ParsingError::ArgumentError("jmp", self.location, ArgumentError::MissingArgument));
                 };
                 if let Some(v) = &self.arg2 {
-                    return Err(ParsingError::ArgumentError("jmp", ArgumentError::UnexpectedArgument(v.clone())));
+                    return Err(ParsingError::ArgumentError("jmp", self.location, ArgumentError::UnexpectedArgument(v.clone())));
                 }
                 Instruction::Jump(addr)
             },
@@ -308,7 +314,8 @@ impl Parser {
     }
 
     fn try_parse_instruction(&mut self, previous: &Token) -> Result<Line, ParsingError> {
-        let start_location = self.lexer.location();
+        let line = self.lexer.line();
+        let start_location = (line, 0);
         if let Token::Alphanumeric(op) = previous {
             self.trim_whitespace()?;
 
