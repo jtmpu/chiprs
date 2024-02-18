@@ -38,6 +38,12 @@ impl PartialEq<u8> for u4 {
     }
 }
 
+impl From<u8> for u4 {
+    fn from(item: u8) -> Self {
+        Self::little(item)
+    }
+}
+
 /// Represents a 12 bit value
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -72,6 +78,12 @@ impl u12 {
 impl PartialEq<u16> for u12 {
     fn eq(&self, other: &u16) -> bool {
         self.value == *other
+    }
+}
+
+impl From<u16> for u12 {
+    fn from(item: u16) -> Self {
+        Self::from_u16(item)
     }
 }
 
@@ -129,7 +141,21 @@ impl Instruction {
         match self {
             Self::Clear => 0x00e0,
             Self::Jump(addr) => 0x1000 | addr.value(),
-            _ => 0x0000,
+            Self::SkipNotEqual(reg, value) => {
+                let big: u16 = 0x40 | (reg.value() as u16);
+                let small: u16 = *value as u16;
+                return (big << 8) | small;
+            },
+            Self::Move(reg, value) => {
+                let big: u16 = 0x60 | (reg.value() as u16);
+                let small: u16 = *value as u16;
+                return (big << 8) | small;
+            },
+            Self::Add(reg, value) => {
+                let big: u16 = 0x70 | (reg.value() as u16);
+                let small: u16 = *value as u16;
+                return (big << 8) | small;
+            },
         }
     }
 }
@@ -181,6 +207,21 @@ mod tests {
             let [upper, lower] = case.0.to_be_bytes();
             let value = Instruction::from_opcode_u8(upper, lower).unwrap();
             assert_eq!(value, case.1);
+        }
+    }
+
+    #[test]
+    fn test_instruction_to_opcode() {
+        let cases: Vec<(Instruction, u16)> = vec![
+            (Instruction::Clear, 0x00e0),
+            (Instruction::Jump(0x123.into()), 0x1123),
+            (Instruction::Move(0x02.into(), 0x42), 0x6242),
+            (Instruction::Add(0x04.into(), 0x2), 0x7402),
+            (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),
+        ];
+        for case in cases {
+            let opcode = case.0.opcode();
+            assert_eq!(opcode, case.1, "[{:?}]: expected '0x{:04x}', received '0x{:04x}'", case.0, case.1, opcode);
         }
     }
 }
