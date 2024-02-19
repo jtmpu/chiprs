@@ -34,27 +34,21 @@ pub const REGISTRY_COUNT: usize = 16;
 pub const STACK_SIZE: usize = 32;
 pub const GRAPHICS_BUFFER_SIZE: usize = 256;
 
-#[macro_export]
-macro_rules! fill_mem {
-    ($mem:expr,$offset:expr,$($elem:expr),*) => {
-        {
-            let mut data: Vec<u8> = Vec::new();
-            $(
-                data.push($elem);
-            )*
-            let mut cursor = Cursor::new($mem.as_mut_slice());
-            cursor.seek(SeekFrom::Start($offset as u64))?;
-            let result = cursor.write_all(&data);
-            result
-        }
-    }
-}
+pub const DEFAULT_SPRITE_START_ADDR: usize = 0x00;
+pub const DEFAULT_SPRITES: [[u8; 5]; 2] = [
+    // 0
+    [0xF0, 0x90, 0x90, 0x90, 0xF0],
+    // 1
+    [0x20, 0x60, 0x20, 0x20, 0x70],
+];
 
 pub struct Emulator {
     memory: [u8; MEMSIZE],
     registries: [u8; REGISTRY_COUNT],
     program_counter: usize,
     stack_pointer: usize,
+    // I registry
+    address_register: usize,
     stack: [usize; STACK_SIZE],
     graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
 }
@@ -66,6 +60,7 @@ impl Emulator {
             registries: [0; REGISTRY_COUNT],
             program_counter: START_ADDR,
             stack_pointer: 0,
+            address_register: 0,
             stack: [0; STACK_SIZE],
             graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
         };
@@ -79,6 +74,7 @@ impl Emulator {
         self.registries = [0; REGISTRY_COUNT];
         self.program_counter = START_ADDR;
         self.stack_pointer = 0;
+        self.address_register = 0;
         self.stack = [0; STACK_SIZE];
         self.graphics_buffer = [0; GRAPHICS_BUFFER_SIZE];
         self.load_default_sprites().unwrap();
@@ -87,15 +83,11 @@ impl Emulator {
     /// Loads the default sprites which should be available.
     /// These are placed in the 0x00-0x1FF range
     fn load_default_sprites(&mut self) -> std::io::Result<()> {
-        const START: usize = 0x00;
-        // 0
-        fill_mem!(self.memory, (START), 0xF0, 0x90, 0x90, 0x90, 0xF0)?;
-        // 1
-        fill_mem!(self.memory, (START + 6), 0x20, 0x60, 0x20, 0x20, 0x70)?;
-        // 2
-        fill_mem!(self.memory, (START + 11), 0xF0, 0x10, 0xF0, 0x80, 0xF0)?;
-        // 3
-        fill_mem!(self.memory, (START + 16), 0xF0, 0x10, 0xF0, 0x10, 0xF0)?;
+        for (offset, sprite) in DEFAULT_SPRITES.iter().enumerate() {
+            for i in 0..5 {
+                self.memory[DEFAULT_SPRITE_START_ADDR + (offset * 5) + i] = sprite[i];
+            }
+        }
         Ok(())
     }
 
@@ -211,10 +203,41 @@ impl Emulator {
                 self.registries[regx.value() as usize] = vx | vy;
             },
             Instruction::Draw(regx, regy, n) => {
-                todo!();
+                let mut vf = 0;
+
+                let x = regx.value() as usize;
+                let y = regy.value() as usize;
+                let start = x / 8 + y * 4;
+                // render each line separetly
+                for i in 0..n.value() {
+                    let sprite = self.memory[self.address_register + (i as usize)];
+                    let sp1 = sprite >> x % 8;
+                    let sp2 = sprite << (8 - x % 8);
+
+                    let i1 = start + (i as usize) * 4;
+                    let i2 = start + 1 + (i as usize) * 4;
+
+                    let byte1 = self.graphics_buffer[i1];
+                    self.graphics_buffer[i1] = byte1 ^ sp1;
+                    let byte2 = self.graphics_buffer[i2];
+                    self.graphics_buffer[i2] = byte2 ^ sp2;
+
+                    vf = vf | ((byte1 ^ sp1) ^ (byte1 | sp1));
+                    vf = vf | ((byte2 ^ sp2) ^ (byte2 | sp2));
+                }
+
+                if vf > 0 {
+                    self.registries[0x0F as usize] = 1;
+                }
             },
             Instruction::SetMemRegisterDefaultSprit(regx) => {
-                todo!();
+                let hex_digit = self.registries[regx.value() as usize];
+                if hex_digit > 0x0F {
+                    // Panic? Fail? 
+                }
+                // sprites are sequential, 0 -> F, and always 5 bytes. Just calculate
+                // the offset from the start location
+                self.address_register = DEFAULT_SPRITE_START_ADDR + ((hex_digit as usize) * 5);
             },
         };
         Ok(true)
