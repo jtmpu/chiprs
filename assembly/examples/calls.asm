@@ -4,7 +4,7 @@ main:
     call func1
     call func2
     call func1
-    abort
+    exit
 
 func1:
     add r1 4

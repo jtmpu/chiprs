@@ -90,7 +90,7 @@ impl From<u16> for u12 {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Instruction {
     /// dead - Custom code to make assembler exit gracefully
-    Abort,
+    Exit,
     /// 00e0
     Clear,
     /// 00EE - return from subroutine
@@ -152,7 +152,7 @@ impl Instruction {
                 Some(Self::Or(regx.into(), (regy >> 4).into()))
             },
             (0xD0, 0x0E, 0xA0, 0x0D) => {
-                Some(Self::Abort)
+                Some(Self::Exit)
             },
             (_, _, _, _) => None,
         }
@@ -160,7 +160,7 @@ impl Instruction {
 
     pub fn opcode(&self) -> u16 {
         match self {
-            Self::Abort => 0xdead,
+            Self::Exit => 0xdead,
             Self::Clear => 0x00e0,
             Self::Return => 0x00ee,
             Self::Jump(addr) => 0x1000 | addr.value(),
@@ -190,7 +190,7 @@ impl Instruction {
 
     pub fn to_assembly(&self) -> String {
         match self {
-            Self::Abort => format!("abort"),
+            Self::Exit => format!("exit"),
             Self::Clear => format!("clear"),
             Self::Return => format!("ret"),
             Self::Jump(addr) => format!("jmp {}", addr.value()),
@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn test_instruction_from_opcode() {
         let cases: Vec<(u16, Instruction)> = vec![
-            (0xDEAD, Instruction::Abort),
+            (0xDEAD, Instruction::Exit),
             (0x00E0, Instruction::Clear),
             (0x00EE, Instruction::Return),
             (0x1BFD, Instruction::Jump(u12::from_u16(0xBFD))),
@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn test_instruction_to_opcode() {
         let cases: Vec<(Instruction, u16)> = vec![
-            (Instruction::Abort, 0xDEAD),
+            (Instruction::Exit, 0xDEAD),
             (Instruction::Clear, 0x00E0),
             (Instruction::Return, 0x00EE),
             (Instruction::Jump(0x123.into()), 0x1123),

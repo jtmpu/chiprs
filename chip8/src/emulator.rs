@@ -124,7 +124,7 @@ impl Emulator {
     pub fn execute(&mut self, instruction: Instruction) -> Result<bool, Box<dyn Error>> {
         debug!(instruction = ?instruction, "executing instruction");
         match instruction {
-            Instruction::Abort => {
+            Instruction::Exit => {
                 // Kill execution
                 return Ok(false);
             },
@@ -238,7 +238,7 @@ mod test {
             add r1 2
             add r1 10
             add r2 4
-            abort"
+            exit"
         );
         assert_eq!(reg_value(&e, 1), 12);
         assert_eq!(reg_value(&e, 2), 5);
@@ -256,7 +256,7 @@ mod test {
             add r2 4
             jmp loop
         exit:
-            abort"
+            exit"
         );
         assert_eq!(reg_value(&e, 1), 4);
         assert_eq!(reg_value(&e, 2), 16);
@@ -271,7 +271,7 @@ mod test {
             call func1
             call func2
             call func1
-            abort
+            exit
 
         func1:
             add r1 4

@@ -9,4 +9,4 @@ loop:
     add r2 2
     jmp loop
 exit:
-    abort
+    exit
