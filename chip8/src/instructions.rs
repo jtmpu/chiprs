@@ -107,6 +107,10 @@ pub enum Instruction {
     Add(u4, u8),
     /// 8xy1 - Set Vx = Vx OR Vy
     Or(u4, u4),
+    /// Dxyn - Draw n-byte sprite starting at mem I at (Vx, Vy), set VF = collision
+    Draw(u4, u4, u4),
+    /// Fx29 - Set I = location of default sprite for digit Vx
+    SetMemRegisterDefaultSprit(u4),
 }
 
 impl Instruction {
@@ -151,7 +155,13 @@ impl Instruction {
             (0x80, regx, regy, 0x01) => {
                 Some(Self::Or(regx.into(), (regy >> 4).into()))
             },
-            (0xD0, 0x0E, 0xA0, 0x0D) => {
+            (0xD0, regx, regy, n) => {
+                Some(Self::Draw(regx.into(), (regy >> 4).into(), n.into()))
+            },
+            (0xF0, regx, 0x20, 0x09) => {
+                Some(Self::SetMemRegisterDefaultSprit(regx.into()))
+            },
+            (0xF0, 0x01, 0xE0, 0x0E) => {
                 Some(Self::Exit)
             },
             (_, _, _, _) => None,
@@ -160,7 +170,7 @@ impl Instruction {
 
     pub fn opcode(&self) -> u16 {
         match self {
-            Self::Exit => 0xdead,
+            Self::Exit => 0xf1ee,
             Self::Clear => 0x00e0,
             Self::Return => 0x00ee,
             Self::Jump(addr) => 0x1000 | addr.value(),
@@ -184,7 +194,17 @@ impl Instruction {
                 let big: u16 = 0x80 | (regx.value() as u16);
                 let small: u16 = (regy.value() as u16) << 4 | (0x01 as u16);
                 return (big << 8) | small;
-            }
+            },
+            Self::Draw(regx, regy, n) => {
+                let big: u16 = 0xd0 | (regx.value() as u16);
+                let small: u16 = (regy.value() as u16) << 4 | (n.value() as u16);
+                return (big << 8) | small;
+            },
+            Self::SetMemRegisterDefaultSprit(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x29;
+                return (big << 8) | small;
+            },
         }
     }
 
@@ -199,6 +219,8 @@ impl Instruction {
             Self::Move(reg, value) => format!("mov r{} {}", reg.value(), value),
             Self::Add(reg, value) => format!("add r{} {}", reg.value(), value),
             Self::Or(regx, regy) => format!("or r{} r{}", regx.value(), regy.value()),
+            Self::Draw(regx, regy, n) => format!("draw r{} r{} {}", regx.value(), regy.value(), n.value()),
+            Self::SetMemRegisterDefaultSprit(reg) => format!("ldf {}", reg.value()),
         }
     }
 }
@@ -238,7 +260,7 @@ mod tests {
     #[test]
     fn test_instruction_from_opcode() {
         let cases: Vec<(u16, Instruction)> = vec![
-            (0xDEAD, Instruction::Exit),
+            (0xF1EE, Instruction::Exit),
             (0x00E0, Instruction::Clear),
             (0x00EE, Instruction::Return),
             (0x1BFD, Instruction::Jump(u12::from_u16(0xBFD))),
@@ -247,6 +269,8 @@ mod tests {
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
             (0x42EC, Instruction::SkipNotEqual(u4::little(0x02), 0xEC)),
             (0x8121, Instruction::Or(0x01.into(), 0x02.into())),
+            (0xD265, Instruction::Draw(0x02.into(), 0x06.into(), 0x05.into())),
+            (0xFA29, Instruction::SetMemRegisterDefaultSprit(0x0A.into())),
         ];
 
         for case in cases {
@@ -261,7 +285,7 @@ mod tests {
     #[test]
     fn test_instruction_to_opcode() {
         let cases: Vec<(Instruction, u16)> = vec![
-            (Instruction::Exit, 0xDEAD),
+            (Instruction::Exit, 0xF1EE),
             (Instruction::Clear, 0x00E0),
             (Instruction::Return, 0x00EE),
             (Instruction::Jump(0x123.into()), 0x1123),
@@ -270,6 +294,8 @@ mod tests {
             (Instruction::Add(0x04.into(), 0x2), 0x7402),
             (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),
             (Instruction::Or(0x02.into(), 0x03.into()), 0x8231),
+            (Instruction::Draw(0x04.into(), 0x05.into(), 0x0F.into()), 0xD45F),
+            (Instruction::SetMemRegisterDefaultSprit(0x02.into()), 0xF229),
         ];
         for case in cases {
             let opcode = case.0.opcode();

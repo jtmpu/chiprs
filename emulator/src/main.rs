@@ -1,4 +1,17 @@
-use std::{path::Path, fs::File, io::Read, io};
+use std::{path::Path, fs::File, io::Read, io, io::stdout};
+
+use crossterm::{
+    event::{self, KeyCode, KeyEventKind},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
+        LeaveAlternateScreen
+    },
+    ExecutableCommand,
+};
+use ratatui::{
+    prelude::{CrosstermBackend, Stylize, Terminal},
+    widgets::Paragraph,
+};
 
 use chip8::emulator::Emulator;
 use clap::Parser;
@@ -12,13 +25,16 @@ struct Args {
     file: Option<String>,
 
     #[arg(short, long)]
+    ticks: Option<usize>,
+
+    #[arg(short, long)]
     debug: bool,
+
+    #[arg(long)]
+    headless: bool,
 
     #[arg(short, long)]
     verbose: bool,
-
-    #[arg(short, long)]
-    ticks: Option<usize>,
     
     #[clap(long)]
     #[clap(help = "message format for logging")]
@@ -58,25 +74,55 @@ fn configure_logger(args: &Args) {
     };
 }
 
-fn main() {
+fn main() -> io::Result<()> {
     let args = Args::parse();
+    // configure_logger(&args);
 
-    configure_logger(&args);
+    stdout().execute(EnterAlternateScreen)?;
+    enable_raw_mode()?;
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+    terminal.clear()?;
 
-    let span = span!(Level::INFO, "emulator-bin:main");
-    let _guard = span.enter();
+    loop {
+        terminal.draw(|frame| {
+            let area = frame.size();
+            frame.render_widget(
+                Paragraph::new("Chip-8 (press 'q' to quit)")
+                    .white()
+                    .on_blue(),
+                area,
+            );
+        })?;
+
+        if event::poll(std::time::Duration::from_millis(16))? {
+            if let event::Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press 
+                    && key.code == KeyCode::Char('q') {
+                    break;
+                }
+            }
+        }
+    }
+
+    stdout().execute(LeaveAlternateScreen)?;
+    disable_raw_mode()?;
+    Ok(())
+}
+
+
+fn create_load_emulator(args: &Args) -> Result<Emulator, ()> {
     let reader: Box<dyn Read> = if let Some(f) = &args.file {
         let path = Path::new(f);
         if !path.exists() {
             error!("chip-8 bin file doesn't exist: {}", path.display()); 
-            return;
+            return Err(());
         }
 
         let reader = match File::open(path) {
             Ok(r) => r,
             Err(err) => {
                 error!(error = ?err, "failed to open chip-8 binary file");
-                return;
+                return Err(());
             }
         };
         Box::new(reader)
@@ -86,18 +132,10 @@ fn main() {
 
     let mut emulator = Emulator::new();
     match emulator.load(reader) {
-        Ok(_) => {},
+        Ok(_) => return Ok(emulator),
         Err(e) => {
             error!("failed to load emulator: {}", e);
-            return;
+            return Err(());
         }
     }
-    if let Some(ticks) = args.ticks {
-        for _ in 1..ticks {
-            emulator.tick().unwrap();
-        }
-    } else {
-        emulator.run();
-    }
-    emulator.dump_state();
 }

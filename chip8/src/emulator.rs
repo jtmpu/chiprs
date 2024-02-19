@@ -3,7 +3,7 @@
 //!
 
 use std::fmt;
-use std::io::Read;
+use std::io::{Read, Cursor, Write, Seek, SeekFrom};
 use std::error::Error;
 
 use tracing::{debug, error, span, Level};
@@ -32,6 +32,23 @@ pub const START_ADDR: usize = 0x200;
 
 pub const REGISTRY_COUNT: usize = 16;
 pub const STACK_SIZE: usize = 32;
+pub const GRAPHICS_BUFFER_SIZE: usize = 256;
+
+#[macro_export]
+macro_rules! fill_mem {
+    ($mem:expr,$offset:expr,$($elem:expr),*) => {
+        {
+            let mut data: Vec<u8> = Vec::new();
+            $(
+                data.push($elem);
+            )*
+            let mut cursor = Cursor::new($mem.as_mut_slice());
+            cursor.seek(SeekFrom::Start($offset as u64))?;
+            let result = cursor.write_all(&data);
+            result
+        }
+    }
+}
 
 pub struct Emulator {
     memory: [u8; MEMSIZE],
@@ -39,28 +56,55 @@ pub struct Emulator {
     program_counter: usize,
     stack_pointer: usize,
     stack: [usize; STACK_SIZE],
+    graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
 }
 
 impl Emulator {
     pub fn new() -> Self {
-        Self {
+        let mut ret = Self {
             memory: [0; MEMSIZE],
             registries: [0; REGISTRY_COUNT],
             program_counter: START_ADDR,
             stack_pointer: 0,
             stack: [0; STACK_SIZE],
-        }
+            graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
+        };
+        ret.reset();
+        ret
     }
 
     /// Resets everything in the emulator
     pub fn reset(&mut self) {
-        debug!("reseting emulator");
-
         self.memory = [0; MEMSIZE];
         self.registries = [0; REGISTRY_COUNT];
         self.program_counter = START_ADDR;
         self.stack_pointer = 0;
         self.stack = [0; STACK_SIZE];
+        self.graphics_buffer = [0; GRAPHICS_BUFFER_SIZE];
+        self.load_default_sprites().unwrap();
+    }
+
+    /// Loads the default sprites which should be available.
+    /// These are placed in the 0x00-0x1FF range
+    fn load_default_sprites(&mut self) -> std::io::Result<()> {
+        const START: usize = 0x00;
+        // 0
+        fill_mem!(self.memory, (START), 0xF0, 0x90, 0x90, 0x90, 0xF0)?;
+        // 1
+        fill_mem!(self.memory, (START + 6), 0x20, 0x60, 0x20, 0x20, 0x70)?;
+        // 2
+        fill_mem!(self.memory, (START + 11), 0xF0, 0x10, 0xF0, 0x80, 0xF0)?;
+        // 3
+        fill_mem!(self.memory, (START + 16), 0xF0, 0x10, 0xF0, 0x10, 0xF0)?;
+        Ok(())
+    }
+
+    pub fn copy_bytes(&self, start: usize, amount: usize) -> Vec<u8> {
+        let mut ret = Vec::new();
+        for index in start..(start + amount) {
+            ret.push(self.memory[index]);
+        }
+        ret
     }
 
     pub fn load<T: Read>(&mut self, mut reader: T) -> Result<(), Box<dyn Error>> {
@@ -165,6 +209,12 @@ impl Emulator {
                 let vx = self.registries[regx.value() as usize];
                 let vy = self.registries[regy.value() as usize];
                 self.registries[regx.value() as usize] = vx | vy;
+            },
+            Instruction::Draw(regx, regy, n) => {
+                todo!();
+            },
+            Instruction::SetMemRegisterDefaultSprit(regx) => {
+                todo!();
             },
         };
         Ok(true)
@@ -283,5 +333,19 @@ mod test {
             ret"
         );
         assert_eq!(reg_value(&e, 1), 16);
+    }
+
+    #[test]
+    fn test_default_sprites() {
+        let mut emulator = Emulator::new();
+        emulator.reset();
+
+        // offset 6, length 5, should be "1" sprite
+        let sprite = emulator.copy_bytes(6, 5);
+        assert_eq!(sprite[0], 0x20, "failed on offset: {}", 0);
+        assert_eq!(sprite[1], 0x60, "failed on offset: {}", 1);
+        assert_eq!(sprite[2], 0x20, "failed on offset: {}", 2);
+        assert_eq!(sprite[3], 0x20, "failed on offset: {}", 3);
+        assert_eq!(sprite[4], 0x70, "failed on offset: {}", 4);
     }
 }

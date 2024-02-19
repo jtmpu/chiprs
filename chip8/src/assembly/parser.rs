@@ -116,6 +116,7 @@ struct RawInstr {
     operation: String,
     arg1: Option<String>,
     arg2: Option<String>,
+    arg3: Option<String>,
     _comment: Option<String>,
     location: Location,
 }
@@ -192,6 +193,9 @@ impl RawInstr {
                     .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
                 let value = RawInstr::parse_as_value(self.arg2.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError("sne", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
                 Instruction::SkipNotEqual(reg_index, value)
             }
             "mov" => {
@@ -199,6 +203,9 @@ impl RawInstr {
                     .map_err(|e| ParsingError::ArgumentError("mov", self.location, e))?;
                 let value = RawInstr::parse_as_value(self.arg2.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("mov", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError("mov", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
                 Instruction::Move(reg_index, value)
             },
             "add" => {
@@ -206,6 +213,9 @@ impl RawInstr {
                     .map_err(|e| ParsingError::ArgumentError("add", self.location, e))?;
                 let value = RawInstr::parse_as_value(self.arg2.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("add", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError("add", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
                 Instruction::Add(reg_index, value)
             },
             "or" => {
@@ -213,7 +223,30 @@ impl RawInstr {
                     .map_err(|e| ParsingError::ArgumentError("or", self.location, e))?;
                 let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("or", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError("or", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
                 Instruction::Or(regx_index, regy_index)
+            },
+            "ldf" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("ldf", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError("ldf", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError("ldf", self.location, ArgumentError::UnexpectedArgument(v.clone())));
+                }
+                Instruction::SetMemRegisterDefaultSprit(regx_index)
+            },
+            "draw" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("draw", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("draw", self.location, e))?;
+                let value = RawInstr::parse_as_nibble(self.arg3.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("draw", self.location, e))?;
+                Instruction::Draw(regx_index, regy_index, value)
             },
             instr => {
                 return Err(ParsingError::UnknownInstruction(instr.to_string(), self.location));
@@ -237,6 +270,16 @@ impl RawInstr {
             None => return Err(ArgumentError::MissingRegistryPrefix(value.clone())),
         };
         let index = index.parse::<u8>()?;
+        Ok(u4::little(index))
+    }
+
+    fn parse_as_nibble(arg: Option<&String>) -> Result<u4, ArgumentError> {
+        let value = if let Some(value) = arg {
+            value
+        } else {
+            return Err(ArgumentError::MissingArgument)
+        };
+        let index = value.parse::<u8>()?;
         Ok(u4::little(index))
     }
 
@@ -381,6 +424,7 @@ impl Parser {
                             operation: op.clone(),
                             arg1: None,
                             arg2: None,
+                            arg3: None,
                             _comment: Some(comment.clone()),
                             location: start_location,
                         };
@@ -395,6 +439,7 @@ impl Parser {
                         operation: op.clone(),
                         arg1: None,
                         arg2: None,
+                        arg3: None,
                         _comment: None,
                         location: start_location,
                     };
@@ -424,6 +469,7 @@ impl Parser {
                             operation: op.clone(),
                             arg1: Some(second),
                             arg2: None,
+                            arg3: None,
                             _comment: Some(comment.clone()),
                             location: start_location,
                         };
@@ -438,6 +484,7 @@ impl Parser {
                         operation: op.clone(),
                         arg1: Some(second),
                         arg2: None,
+                        arg3: None,
                         _comment: None,
                         location: start_location,
                     };
@@ -447,8 +494,19 @@ impl Parser {
             };
 
             self.trim_whitespace()?;
+
             let location = self.lexer.location();
-            match self.peek()? {
+            let fourth = match self.peek()? {
+                Token::Alphanumeric(p1) => {
+                    let ret = p1.clone();
+                    self.pop()?;
+                    ret
+                },
+                Token::Integer(p2) => {
+                    let ret = p2.to_string();
+                    self.pop()?;
+                    ret
+                },
                 Token::Semicolon => {
                     let result = self.try_parse_comment()?;
                     if let Line::Comment(comment) = result {
@@ -456,6 +514,7 @@ impl Parser {
                             operation: op.clone(),
                             arg1: Some(second),
                             arg2: Some(third),
+                            arg3: None,
                             _comment: Some(comment.clone()),
                             location: start_location,
                         };
@@ -470,6 +529,41 @@ impl Parser {
                         operation: op.clone(),
                         arg1: Some(second),
                         arg2: Some(third),
+                        arg3: None,
+                        _comment: None,
+                        location: start_location,
+                    };
+                    return Ok(Line::Instruction(instr));
+                }
+                token => return Err(ParsingError::UnexpectedToken("parse:instruction:fourth", token.clone(), location)),
+            };
+
+            self.trim_whitespace()?;
+            let location = self.lexer.location();
+            match self.peek()? {
+                Token::Semicolon => {
+                    let result = self.try_parse_comment()?;
+                    if let Line::Comment(comment) = result {
+                        let instr = RawInstr {
+                            operation: op.clone(),
+                            arg1: Some(second),
+                            arg2: Some(third),
+                            arg3: Some(fourth),
+                            _comment: Some(comment.clone()),
+                            location: start_location,
+                        };
+                        return Ok(Line::Instruction(instr));
+                    }
+                    // Something weird happened
+                    return Err(ParsingError::Unknown(format!("expected parsed comment, received {:?}", result)));
+                },
+                Token::EOL | Token::EOF => {
+                    self.pop()?;
+                    let instr = RawInstr {
+                        operation: op.clone(),
+                        arg1: Some(second),
+                        arg2: Some(third),
+                        arg3: Some(fourth),
                         _comment: None,
                         location: start_location,
                     };
@@ -696,6 +790,30 @@ mod test {
             "call 123",
             vec![
                 Instruction::Call(123.into()),
+            ].iter()
+                .map(|e| ParsedInstruction::new(e.clone()))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_ldf() {
+        parse_and_assert(
+            "ldf r4",
+            vec![
+                Instruction::SetMemRegisterDefaultSprit(4.into()),
+            ].iter()
+                .map(|e| ParsedInstruction::new(e.clone()))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_draw() {
+        parse_and_assert(
+            "draw r3 r4 2",
+            vec![
+                Instruction::Draw(3.into(), 4.into(), 2.into()),
             ].iter()
                 .map(|e| ParsedInstruction::new(e.clone()))
                 .collect(),
