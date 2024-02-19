@@ -203,16 +203,17 @@ impl Emulator {
                 self.registries[regx.value() as usize] = vx | vy;
             },
             Instruction::Draw(regx, regy, n) => {
+                println!("drawing");
                 let mut vf = 0;
 
-                let x = regx.value() as usize;
-                let y = regy.value() as usize;
+                let x = self.registries[regx.value() as usize] as usize;
+                let y = self.registries[regy.value() as usize] as usize;
                 let start = x / 8 + y * 4;
                 // render each line separetly
                 for i in 0..n.value() {
                     let sprite = self.memory[self.address_register + (i as usize)];
                     let sp1 = sprite >> x % 8;
-                    let sp2 = sprite << (8 - x % 8);
+                    let (sp2, _) = sprite.overflowing_shl((8 - x % 8) as u32);
 
                     let i1 = start + (i as usize) * 4;
                     let i2 = start + 1 + (i as usize) * 4;
@@ -360,15 +361,100 @@ mod test {
 
     #[test]
     fn test_default_sprites() {
-        let mut emulator = Emulator::new();
-        emulator.reset();
+        // address registry should point at default sprite "1"
+        let e = create_execute("
+        main:
+            mov r1 1
+            ldf r1
+            "
+        );
 
-        // offset 6, length 5, should be "1" sprite
-        let sprite = emulator.copy_bytes(6, 5);
-        assert_eq!(sprite[0], 0x20, "failed on offset: {}", 0);
-        assert_eq!(sprite[1], 0x60, "failed on offset: {}", 1);
-        assert_eq!(sprite[2], 0x20, "failed on offset: {}", 2);
-        assert_eq!(sprite[3], 0x20, "failed on offset: {}", 3);
-        assert_eq!(sprite[4], 0x70, "failed on offset: {}", 4);
+        let bytes = e.copy_bytes(e.address_register, 5);
+        assert_eq!(bytes[0], 0x20, "byte {} is invalid", 0);
+        assert_eq!(bytes[1], 0x60, "byte {} is invalid", 1);
+        assert_eq!(bytes[2], 0x20, "byte {} is invalid", 2);
+        assert_eq!(bytes[3], 0x20, "byte {} is invalid", 3);
+        assert_eq!(bytes[4], 0x70, "byte {} is invalid", 4);
+    }
+
+    #[test]
+    fn test_draw_simple() {
+        // point address registry to 1 and render it on (0, 0)
+        let e = create_execute("
+        main:
+            mov r1 1
+            ldf r1
+            mov r1 0
+            mov r2 0
+            draw r1 r2 5
+            "
+        );
+
+        assert_eq!(e.graphics_buffer[0], 0x20, "byte {} is invalid", 0);
+        assert_eq!(e.graphics_buffer[4], 0x60, "byte {} is invalid", 4);
+        assert_eq!(e.graphics_buffer[8], 0x20, "byte {} is invalid", 8);
+        assert_eq!(e.graphics_buffer[12], 0x20, "byte {} is invalid", 12);
+        assert_eq!(e.graphics_buffer[16], 0x70, "byte {} is invalid", 16);
+
+    }
+
+    #[test]
+    fn test_draw_wrapping() {
+        // point address registry to 1 and render it on (0, 0)
+        let e = create_execute("
+        main:
+            mov r1 1
+            ldf r1
+            mov r1 28
+            mov r2 0
+            draw r1 r2 5
+            "
+        );
+
+        assert_eq!(e.graphics_buffer[3], 0x02, "byte {} is invalid", 4);
+        assert_eq!(e.graphics_buffer[4], 0x00, "byte {} is invalid", 5);
+        assert_eq!(e.graphics_buffer[7], 0x06, "byte {} is invalid", 7);
+        assert_eq!(e.graphics_buffer[8], 0x00, "byte {} is invalid", 8);
+        assert_eq!(e.graphics_buffer[11], 0x02, "byte {} is invalid", 11);
+        assert_eq!(e.graphics_buffer[12], 0x00, "byte {} is invalid", 12);
+        assert_eq!(e.graphics_buffer[15], 0x02, "byte {} is invalid", 15);
+        assert_eq!(e.graphics_buffer[16], 0x00, "byte {} is invalid", 16);
+        assert_eq!(e.graphics_buffer[19], 0x07, "byte {} is invalid", 19);
+        assert_eq!(e.graphics_buffer[20], 0x00, "byte {} is invalid", 20);
+    }
+
+    #[test]
+    fn test_draw_no_collision() {
+        // Render 1 twice on the same location, should give a collision
+        let e = create_execute("
+        main:
+            mov r1 1
+            ldf r1
+            mov r1 0
+            mov r2 0
+            draw r1 r2 5
+            "
+        );
+        assert_eq!(e.registries[0x0F as usize], 0);
+    }
+
+    #[test]
+    fn test_draw_collision() {
+        // Render 1 twice on the same location, should give a collision
+        let e = create_execute("
+        main:
+            mov r1 1
+            ldf r1
+            mov r1 0
+            mov r2 0
+            draw r1 r2 5
+            mov r1 1
+            ldf r1
+            mov r1 0
+            mov r2 0
+            draw r1 r2 5
+            "
+        );
+        assert_eq!(e.registries[0x0F as usize], 1);
     }
 }
