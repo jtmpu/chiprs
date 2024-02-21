@@ -1,10 +1,10 @@
-use std::io::Write;
 use clap::Parser;
+use std::io::Write;
 
 mod app;
-mod ui;
 mod event;
 mod tui;
+mod ui;
 mod update;
 mod widgets;
 
@@ -38,10 +38,10 @@ fn main() -> Result<()> {
         tui.draw(&mut app)?;
 
         match tui.events.next()? {
-            Event::Tick => {},
+            Event::Tick => {}
             Event::Key(key_event) => update(&mut app, key_event),
-            Event::Mouse(_) => {},
-            Event::Resize(_, _) => {},
+            Event::Mouse(_) => {}
+            Event::Resize(_, _) => {}
         }
     }
 

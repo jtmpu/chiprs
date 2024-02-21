@@ -1,3 +1,3 @@
-pub mod instructions;
-pub mod emulator;
 pub mod assembly;
+pub mod emulator;
+pub mod instructions;

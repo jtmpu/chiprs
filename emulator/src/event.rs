@@ -1,6 +1,6 @@
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 use std::{
-    sync::mpsc, 
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
@@ -51,22 +51,16 @@ impl EventHandler {
                                 } else {
                                     Ok(())
                                 }
-                            },
-                            CrosstermEvent::Mouse(e) => {
-                                sender.send(Event::Mouse(e))
-                            },
-                            CrosstermEvent::Resize(w, h) => {
-                                sender.send(Event::Resize(w, h))
                             }
+                            CrosstermEvent::Mouse(e) => sender.send(Event::Mouse(e)),
+                            CrosstermEvent::Resize(w, h) => sender.send(Event::Resize(w, h)),
                             _ => unimplemented!(),
                         }
                         .expect("failed to send terminal event")
                     }
 
                     if last_tick.elapsed() >= tick_rate {
-                        sender
-                            .send(Event::Tick)
-                            .expect("failed to send tick event");
+                        sender.send(Event::Tick).expect("failed to send tick event");
                         last_tick = Instant::now();
                     }
                 }
@@ -82,5 +76,4 @@ impl EventHandler {
     pub fn next(&self) -> Result<Event, Box<dyn std::error::Error>> {
         Ok(self.receiver.recv()?)
     }
-
 }

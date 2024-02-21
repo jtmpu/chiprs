@@ -1,9 +1,9 @@
-use std::{io, panic};
+use crate::{app::App, event::EventHandler, ui};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use crate::{app::App, event::EventHandler, ui};
+use std::{io, panic};
 
 pub type CrosstermTerminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>;
 
@@ -25,11 +25,7 @@ impl Tui {
 
     pub fn enter(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         terminal::enable_raw_mode()?;
-        crossterm::execute!(
-            io::stderr(),
-            EnterAlternateScreen,
-            EnableMouseCapture,
-        )?;
+        crossterm::execute!(io::stderr(), EnterAlternateScreen, EnableMouseCapture,)?;
 
         // Define custom panic hook to reset the terminal properties
         let panic_hook = panic::take_hook();
@@ -43,11 +39,7 @@ impl Tui {
 
     fn reset() -> Result<(), Box<dyn std::error::Error>> {
         terminal::disable_raw_mode()?;
-        crossterm::execute!(
-            io::stderr(),
-            LeaveAlternateScreen,
-            DisableMouseCapture,
-        )?;
+        crossterm::execute!(io::stderr(), LeaveAlternateScreen, DisableMouseCapture,)?;
         Ok(())
     }
 

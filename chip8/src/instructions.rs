@@ -10,21 +10,29 @@ pub struct u4 {
 }
 
 impl u4 {
-    /// Creates two u4 from a byte, return as [big, little] 
+    /// Creates two u4 from a byte, return as [big, little]
     pub fn decompose(value: u8) -> [Self; 2] {
-        let big = Self { value: (value & 0xF0) >> 4 };
-        let little = Self { value: value & 0x0F };
+        let big = Self {
+            value: (value & 0xF0) >> 4,
+        };
+        let little = Self {
+            value: value & 0x0F,
+        };
         [big, little]
     }
 
     /// Create a u4 from the big bits
     pub fn big(value: u8) -> Self {
-        Self { value: (value & 0xF0) >> 4 }
+        Self {
+            value: (value & 0xF0) >> 4,
+        }
     }
 
     // Create a u4 from the little bits
     pub fn little(value: u8) -> Self {
-        Self { value: value & 0x0F }
+        Self {
+            value: value & 0x0F,
+        }
     }
 
     pub fn value(&self) -> u8 {
@@ -123,47 +131,35 @@ impl Instruction {
     /// Deconstructs the opcode into an instruction if possible
     pub fn from_opcode_u8(upper: u8, lower: u8) -> Option<Instruction> {
         match (upper & 0xF0, upper & 0x0F, lower & 0xF0, lower & 0x0F) {
-            (0x00, 0x00, 0xe0, 0x00) => {
-                Some(Self::Clear)
-            },
-            (0x00, 0x00, 0xe0, 0x0e) => {
-                Some(Self::Return)
-            },
+            (0x00, 0x00, 0xe0, 0x00) => Some(Self::Clear),
+            (0x00, 0x00, 0xe0, 0x0e) => Some(Self::Return),
             (0x10, _, _, _) => {
                 let address = u12::from_bytes(upper, lower);
                 Some(Self::Jump(address))
-            },
+            }
             (0x20, _, _, _) => {
                 let address = u12::from_bytes(upper, lower);
                 Some(Self::Call(address))
-            },
+            }
             (0x40, _, _, _) => {
                 let register = u4::little(upper);
                 let value = lower;
                 Some(Self::SkipNotEqual(register, value))
-            },
+            }
             (0x60, _, _, _) => {
                 let register = u4::little(upper);
                 let value = lower;
                 Some(Self::Move(register, value))
-            },
+            }
             (0x70, _, _, _) => {
                 let register = u4::little(upper);
                 let value = lower;
                 Some(Self::Add(register, value))
-            },
-            (0x80, regx, regy, 0x01) => {
-                Some(Self::Or(regx.into(), (regy >> 4).into()))
-            },
-            (0xD0, regx, regy, n) => {
-                Some(Self::Draw(regx.into(), (regy >> 4).into(), n.into()))
-            },
-            (0xF0, regx, 0x20, 0x09) => {
-                Some(Self::SetMemRegisterDefaultSprit(regx.into()))
-            },
-            (0xF0, 0x01, 0xE0, 0x0E) => {
-                Some(Self::Exit)
-            },
+            }
+            (0x80, regx, regy, 0x01) => Some(Self::Or(regx.into(), (regy >> 4).into())),
+            (0xD0, regx, regy, n) => Some(Self::Draw(regx.into(), (regy >> 4).into(), n.into())),
+            (0xF0, regx, 0x20, 0x09) => Some(Self::SetMemRegisterDefaultSprit(regx.into())),
+            (0xF0, 0x01, 0xE0, 0x0E) => Some(Self::Exit),
             (_, _, _, _) => None,
         }
     }
@@ -179,32 +175,32 @@ impl Instruction {
                 let big: u16 = 0x40 | (reg.value() as u16);
                 let small: u16 = *value as u16;
                 return (big << 8) | small;
-            },
+            }
             Self::Move(reg, value) => {
                 let big: u16 = 0x60 | (reg.value() as u16);
                 let small: u16 = *value as u16;
                 return (big << 8) | small;
-            },
+            }
             Self::Add(reg, value) => {
                 let big: u16 = 0x70 | (reg.value() as u16);
                 let small: u16 = *value as u16;
                 return (big << 8) | small;
-            },
+            }
             Self::Or(regx, regy) => {
                 let big: u16 = 0x80 | (regx.value() as u16);
                 let small: u16 = (regy.value() as u16) << 4 | (0x01 as u16);
                 return (big << 8) | small;
-            },
+            }
             Self::Draw(regx, regy, n) => {
                 let big: u16 = 0xd0 | (regx.value() as u16);
                 let small: u16 = (regy.value() as u16) << 4 | (n.value() as u16);
                 return (big << 8) | small;
-            },
+            }
             Self::SetMemRegisterDefaultSprit(regx) => {
                 let big: u16 = 0xF0 | (regx.value() as u16);
                 let small: u16 = 0x29;
                 return (big << 8) | small;
-            },
+            }
         }
     }
 
@@ -219,7 +215,9 @@ impl Instruction {
             Self::Move(reg, value) => format!("mov r{} {}", reg.value(), value),
             Self::Add(reg, value) => format!("add r{} {}", reg.value(), value),
             Self::Or(regx, regy) => format!("or r{} r{}", regx.value(), regy.value()),
-            Self::Draw(regx, regy, n) => format!("draw r{} r{} {}", regx.value(), regy.value(), n.value()),
+            Self::Draw(regx, regy, n) => {
+                format!("draw r{} r{} {}", regx.value(), regy.value(), n.value())
+            }
             Self::SetMemRegisterDefaultSprit(reg) => format!("ldf {}", reg.value()),
         }
     }
@@ -269,7 +267,10 @@ mod tests {
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
             (0x42EC, Instruction::SkipNotEqual(u4::little(0x02), 0xEC)),
             (0x8121, Instruction::Or(0x01.into(), 0x02.into())),
-            (0xD265, Instruction::Draw(0x02.into(), 0x06.into(), 0x05.into())),
+            (
+                0xD265,
+                Instruction::Draw(0x02.into(), 0x06.into(), 0x05.into()),
+            ),
             (0xFA29, Instruction::SetMemRegisterDefaultSprit(0x0A.into())),
         ];
 
@@ -294,12 +295,19 @@ mod tests {
             (Instruction::Add(0x04.into(), 0x2), 0x7402),
             (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),
             (Instruction::Or(0x02.into(), 0x03.into()), 0x8231),
-            (Instruction::Draw(0x04.into(), 0x05.into(), 0x0F.into()), 0xD45F),
+            (
+                Instruction::Draw(0x04.into(), 0x05.into(), 0x0F.into()),
+                0xD45F,
+            ),
             (Instruction::SetMemRegisterDefaultSprit(0x02.into()), 0xF229),
         ];
         for case in cases {
             let opcode = case.0.opcode();
-            assert_eq!(opcode, case.1, "[{:?}]: expected '0x{:04x}', received '0x{:04x}'", case.0, case.1, opcode);
+            assert_eq!(
+                opcode, case.1,
+                "[{:?}]: expected '0x{:04x}', received '0x{:04x}'",
+                case.0, case.1, opcode
+            );
         }
     }
 }

@@ -10,7 +10,6 @@ pub struct App {
 }
 
 impl App {
-    
     pub fn new() -> Self {
         Self {
             should_quit: false,
@@ -20,9 +19,7 @@ impl App {
     }
 
     // Handles tick event of the terminal
-    pub fn tick(&self) {
-        
-    }
+    pub fn tick(&self) {}
 
     pub fn quit(&mut self) {
         self.should_quit = true;
@@ -44,7 +41,11 @@ impl App {
         self.emulator.copy_graphics_buffer()
     }
 
-    pub fn load_and_run(&mut self, file: &str, ticks: usize) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn load_and_run(
+        &mut self,
+        file: &str,
+        ticks: usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut reader = File::open(file)?;
         self.emulator.load(reader)?;
         self.emulator.run();

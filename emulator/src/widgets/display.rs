@@ -1,8 +1,8 @@
+use chip8::emulator;
 use ratatui::{
-    prelude::{Rect, Buffer, Color},
+    prelude::{Buffer, Color, Rect},
     widgets::{Widget, WidgetRef},
 };
-use chip8::emulator;
 
 pub struct Display {
     pixel_filled: &'static str,
@@ -33,7 +33,7 @@ impl Display {
     }
 
     ///
-    /// bit-index: 0 1 2 3 4 5 6 7 
+    /// bit-index: 0 1 2 3 4 5 6 7
     /// (0, 0) => upper bit first byte
     /// (24, 0) => upper bit, fourth byte
     /// (7, 0) => lowest bit first byte
@@ -66,9 +66,7 @@ impl Display {
                     if y >= area.height {
                         break;
                     }
-                    buf.get_mut(x, y)
-                        .set_symbol(pixel)
-                        .set_fg(Color::Yellow);
+                    buf.get_mut(x, y).set_symbol(pixel).set_fg(Color::Yellow);
                 }
             }
         }

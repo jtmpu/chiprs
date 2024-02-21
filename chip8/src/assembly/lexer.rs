@@ -1,12 +1,12 @@
 //!
 //! # Chip-8 lexer
 //!
-//! Parses a byte stream into tokens, for easier processing in the parser stages. 
+//! Parses a byte stream into tokens, for easier processing in the parser stages.
 //!
 
-use std::fmt;
 use std::error::Error;
-use std::io::{Read, self};
+use std::fmt;
+use std::io::{self, Read};
 use std::num::ParseIntError;
 
 const BUFFER_SIZE: usize = 128;
@@ -26,8 +26,7 @@ impl fmt::Display for LexerError {
     }
 }
 
-impl Error for LexerError {
-}
+impl Error for LexerError {}
 
 impl From<io::Error> for LexerError {
     fn from(err: io::Error) -> LexerError {
@@ -57,7 +56,6 @@ pub trait Lexer {
     }
 }
 
-
 /// Simple stream lexer, which only maintains a set buffer of bytes
 /// at a time. Can be used to lex over any stream which has implemented
 /// the Read trait.
@@ -71,7 +69,7 @@ pub struct StreamLexer<T: Read> {
 }
 
 impl<T: Read> StreamLexer<T> {
-    pub fn new(reader: T) -> Self { 
+    pub fn new(reader: T) -> Self {
         Self {
             reader,
             buffer: [0; BUFFER_SIZE],
@@ -127,7 +125,6 @@ impl<T: Read> StreamLexer<T> {
         Ok(chars)
     }
 
-
     pub fn all(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens = vec![];
         loop {
@@ -172,12 +169,12 @@ impl<T: Read> Lexer for StreamLexer<T> {
             b if is_whitespace(b) => {
                 self.collect(b, is_whitespace)?;
                 Token::Whitespace
-            },
+            }
             b if b == '\n' => {
                 self.line += 1;
                 self.column = 0;
                 Token::EOL
-            },
+            }
             b if b == '\r' => {
                 if self.peek()? as char == '\n' {
                     self.pop()?;
@@ -187,21 +184,23 @@ impl<T: Read> Lexer for StreamLexer<T> {
                 } else {
                     Token::Symbol(b)
                 }
-            },
+            }
             b if b.is_ascii_punctuation() => Token::Symbol(b),
             b if b.is_ascii_digit() => {
-                let number: String = self.collect(b, |e| e.is_ascii_digit())?
+                let number: String = self
+                    .collect(b, |e| e.is_ascii_digit())?
                     .into_iter()
                     .collect();
                 let integer: usize = number.parse()?;
                 Token::Integer(integer)
-            },
+            }
             b if b.is_ascii_alphanumeric() => {
-                let literal: String = self.collect(b, |e| e.is_ascii_alphanumeric())?
+                let literal: String = self
+                    .collect(b, |e| e.is_ascii_alphanumeric())?
                     .into_iter()
                     .collect();
                 Token::Alphanumeric(literal)
-            },
+            }
             b => Token::Unknown(b as u8),
         };
         Ok(token)
@@ -272,7 +271,10 @@ mod tests {
         assert_eq!(lexer.column(), 1);
         assert_eq!(lexer.next().unwrap(), Token::Whitespace);
         assert_eq!(lexer.column(), 2);
-        assert_eq!(lexer.next().unwrap(), Token::Alphanumeric("abc".to_string()));
+        assert_eq!(
+            lexer.next().unwrap(),
+            Token::Alphanumeric("abc".to_string())
+        );
         assert_eq!(lexer.column(), 5);
         assert_eq!(lexer.next().unwrap(), Token::Whitespace);
         assert_eq!(lexer.column(), 6);
@@ -283,62 +285,53 @@ mod tests {
     fn line_and_column_counter8() {
         let input = "1 abc\n32 ewq";
         let mut lexer = StreamLexer::new(BufReader::new(input.as_bytes()));
-        assert_eq!(lexer.location(), (0,0));
+        assert_eq!(lexer.location(), (0, 0));
         assert_eq!(lexer.next().unwrap(), Token::Integer(1));
-        assert_eq!(lexer.location(), (0,1));
+        assert_eq!(lexer.location(), (0, 1));
         assert_eq!(lexer.next().unwrap(), Token::Whitespace);
-        assert_eq!(lexer.location(), (0,2));
-        assert_eq!(lexer.next().unwrap(), Token::Alphanumeric("abc".to_string()));
-        assert_eq!(lexer.location(), (0,5));
+        assert_eq!(lexer.location(), (0, 2));
+        assert_eq!(
+            lexer.next().unwrap(),
+            Token::Alphanumeric("abc".to_string())
+        );
+        assert_eq!(lexer.location(), (0, 5));
         assert_eq!(lexer.next().unwrap(), Token::EOL);
-        assert_eq!(lexer.location(), (1,0));
+        assert_eq!(lexer.location(), (1, 0));
         assert_eq!(lexer.next().unwrap(), Token::Integer(32));
-        assert_eq!(lexer.location(), (1,2));
+        assert_eq!(lexer.location(), (1, 2));
         assert_eq!(lexer.next().unwrap(), Token::Whitespace);
-        assert_eq!(lexer.location(), (1,3));
-        assert_eq!(lexer.next().unwrap(), Token::Alphanumeric("ewq".to_string()));
-        assert_eq!(lexer.location(), (1,6));
+        assert_eq!(lexer.location(), (1, 3));
+        assert_eq!(
+            lexer.next().unwrap(),
+            Token::Alphanumeric("ewq".to_string())
+        );
+        assert_eq!(lexer.location(), (1, 6));
         assert_eq!(lexer.next().unwrap(), Token::EOF);
     }
 
     #[test]
     fn whitespace() {
-        lex_and_assert(
-            "\t \t",
-            vec![Token::Whitespace, Token::EOF],
-        );
+        lex_and_assert("\t \t", vec![Token::Whitespace, Token::EOF]);
     }
 
     #[test]
     fn comma() {
-        lex_and_assert(
-            ",",
-            vec![Token::Comma, Token::EOF],
-        );
+        lex_and_assert(",", vec![Token::Comma, Token::EOF]);
     }
 
     #[test]
     fn colon() {
-        lex_and_assert(
-            ":",
-            vec![Token::Colon, Token::EOF],
-        );
+        lex_and_assert(":", vec![Token::Colon, Token::EOF]);
     }
 
     #[test]
     fn semicolon() {
-        lex_and_assert(
-            ";",
-            vec![Token::Semicolon, Token::EOF],
-        );
+        lex_and_assert(";", vec![Token::Semicolon, Token::EOF]);
     }
 
     #[test]
     fn integer() {
-        lex_and_assert(
-            "321",
-            vec![Token::Integer(321), Token::EOF],
-        );
+        lex_and_assert("321", vec![Token::Integer(321), Token::EOF]);
     }
 
     #[test]
@@ -353,28 +346,23 @@ mod tests {
     fn symbol() {
         lex_and_assert(
             "(#'",
-            vec![Token::Symbol('('), Token::Symbol('#'), Token::Symbol('\''), Token::EOF],
+            vec![
+                Token::Symbol('('),
+                Token::Symbol('#'),
+                Token::Symbol('\''),
+                Token::EOF,
+            ],
         );
     }
 
     #[test]
     fn unknown() {
-        lex_and_assert(
-            "\x02",
-            vec![Token::Unknown(0x02), Token::EOF],
-        );
+        lex_and_assert("\x02", vec![Token::Unknown(0x02), Token::EOF]);
     }
 
     #[test]
     fn newline() {
-        lex_and_assert(
-            "\n\r\n",
-            vec![
-                Token::EOL,
-                Token::EOL,
-                Token::EOF,
-            ],
-        );
+        lex_and_assert("\n\r\n", vec![Token::EOL, Token::EOL, Token::EOF]);
     }
 
     #[test]
@@ -465,4 +453,3 @@ mod tests {
         );
     }
 }
-

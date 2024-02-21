@@ -2,9 +2,9 @@
 //! Chip-8 emulator
 //!
 
-use std::fmt;
-use std::io::{Read, Cursor, Write, Seek, SeekFrom};
 use std::error::Error;
+use std::fmt;
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 use tracing::{debug, error, span, Level};
 
@@ -23,9 +23,7 @@ impl fmt::Display for Chip8Error {
         write!(f, "chip-8 failure: {:?}", self)
     }
 }
-impl Error for Chip8Error {
-}
-
+impl Error for Chip8Error {}
 
 pub const MEMSIZE: usize = 4096;
 pub const START_ADDR: usize = 0x200;
@@ -118,10 +116,7 @@ impl Emulator {
         // Expecting big endian
         let big = self.memory[self.program_counter];
         let little = self.memory[self.program_counter + 1];
-        let instruction = Instruction::from_opcode_u8(
-            big,
-            little,
-        );
+        let instruction = Instruction::from_opcode_u8(big, little);
         let instruction = if let Some(i) = instruction {
             i
         } else {
@@ -138,10 +133,10 @@ impl Emulator {
             Err(e) => {
                 error!(
                     pc = self.program_counter,
-                    error = ?e, 
+                    error = ?e,
                     "failed to parse instruction opcode"
                 );
-                return Err(e.into())
+                return Err(e.into());
             }
         };
         self.program_counter += 2;
@@ -152,8 +147,8 @@ impl Emulator {
                     error = ?e,
                     "failed to execute instruction"
                 );
-                return Err(e.into())
-            },
+                return Err(e.into());
+            }
             res => res,
         };
         res
@@ -165,17 +160,17 @@ impl Emulator {
             Instruction::Exit => {
                 // Kill execution
                 return Ok(false);
-            },
+            }
             Instruction::Clear => {
                 // Currently noop
-            },
+            }
             Instruction::Return => {
                 if self.stack_pointer <= 0 {
                     return Err(Chip8Error::StackEmpty.into());
                 }
                 self.stack_pointer -= 1;
                 self.program_counter = self.stack[self.stack_pointer];
-            },
+            }
             Instruction::Call(addr) => {
                 if self.stack_pointer >= STACK_SIZE {
                     return Err(Chip8Error::StackFull.into());
@@ -183,27 +178,27 @@ impl Emulator {
                 self.stack[self.stack_pointer] = self.program_counter;
                 self.stack_pointer += 1;
                 self.program_counter = addr.value() as usize;
-            },
+            }
             Instruction::Jump(addr) => {
                 self.program_counter = addr.value() as usize;
-            },
+            }
             Instruction::SkipNotEqual(register, value) => {
                 let index = register.value() as usize;
                 if self.registries[index] != value {
                     self.program_counter += 2;
                 }
-            },
+            }
             Instruction::Move(register, value) => {
                 self.registries[register.value() as usize] = value;
-            },
+            }
             Instruction::Add(register, value) => {
                 self.registries[register.value() as usize] += value;
-            },
+            }
             Instruction::Or(regx, regy) => {
                 let vx = self.registries[regx.value() as usize];
                 let vy = self.registries[regy.value() as usize];
                 self.registries[regx.value() as usize] = vx | vy;
-            },
+            }
             Instruction::Draw(regx, regy, n) => {
                 let mut vf = 0;
 
@@ -231,16 +226,16 @@ impl Emulator {
                 if vf > 0 {
                     self.registries[0x0F as usize] = 1;
                 }
-            },
+            }
             Instruction::SetMemRegisterDefaultSprit(regx) => {
                 let hex_digit = self.registries[regx.value() as usize];
                 if hex_digit > 0x0F {
-                    // Panic? Fail? 
+                    // Panic? Fail?
                 }
                 // sprites are sequential, 0 -> F, and always 5 bytes. Just calculate
                 // the offset from the start location
                 self.address_register = DEFAULT_SPRITE_START_ADDR + ((hex_digit as usize) * 5);
-            },
+            }
         };
         Ok(true)
     }
@@ -251,7 +246,7 @@ impl Emulator {
             match self.tick() {
                 Ok(false) => break,
                 Err(_) => break,
-                _ => {},
+                _ => {}
             }
         }
     }
@@ -287,17 +282,15 @@ impl Emulator {
 mod test {
     use super::*;
 
-    use std::io::{BufReader, Cursor};
-    use crate::assembly::parser::Parser;
     use crate::assembly::lexer::StreamLexer;
+    use crate::assembly::parser::Parser;
+    use std::io::{BufReader, Cursor};
 
     fn create_execute(input: &'static str) -> Emulator {
         let reader = BufReader::new(input.as_bytes());
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
-        let binary = parser
-            .parse().unwrap()
-            .binary().unwrap();
+        let binary = parser.parse().unwrap().binary().unwrap();
         let mut emulator = Emulator::new();
         let cursor = Cursor::new(binary);
         emulator.load(cursor).unwrap();
@@ -311,13 +304,14 @@ mod test {
 
     #[test]
     fn test_add() {
-        let e = create_execute("
+        let e = create_execute(
+            "
             mov r2 1
             mov r1 0
             add r1 2
             add r1 10
             add r2 4
-            exit"
+            exit",
         );
         assert_eq!(reg_value(&e, 1), 12);
         assert_eq!(reg_value(&e, 2), 5);
@@ -325,7 +319,8 @@ mod test {
 
     #[test]
     fn test_branch_jmp_sne() {
-        let e = create_execute("
+        let e = create_execute(
+            "
             mov r1 0
             add r2 0
         loop:
@@ -335,7 +330,7 @@ mod test {
             add r2 4
             jmp loop
         exit:
-            exit"
+            exit",
         );
         assert_eq!(reg_value(&e, 1), 4);
         assert_eq!(reg_value(&e, 2), 16);
@@ -343,7 +338,8 @@ mod test {
 
     #[test]
     fn test_call_ret() {
-        let e = create_execute("
+        let e = create_execute(
+            "
         main:
             mov r1 0
             add r1 2
@@ -359,7 +355,7 @@ mod test {
         
         func2:
             add r1 2
-            ret"
+            ret",
         );
         assert_eq!(reg_value(&e, 1), 16);
     }
@@ -367,11 +363,12 @@ mod test {
     #[test]
     fn test_default_sprites() {
         // address registry should point at default sprite "1"
-        let e = create_execute("
+        let e = create_execute(
+            "
         main:
             mov r1 1
             ldf r1
-            "
+            ",
         );
 
         let bytes = e.copy_bytes(e.address_register, 5);
@@ -385,14 +382,15 @@ mod test {
     #[test]
     fn test_draw_simple() {
         // point address registry to 1 and render it on (0, 0)
-        let e = create_execute("
+        let e = create_execute(
+            "
         main:
             mov r1 1
             ldf r1
             mov r1 0
             mov r2 0
             draw r1 r2 5
-            "
+            ",
         );
 
         assert_eq!(e.graphics_buffer[0], 0x20, "byte {} is invalid", 0);
@@ -403,7 +401,11 @@ mod test {
         for i in 0..GRAPHICS_BUFFER_SIZE {
             match i {
                 0 | 8 | 16 | 24 | 32 => continue,
-                x => assert_eq!(e.graphics_buffer[i], 0x00, "byte {} is invalid (0x{:02x})", x, e.graphics_buffer[i]),
+                x => assert_eq!(
+                    e.graphics_buffer[i], 0x00,
+                    "byte {} is invalid (0x{:02x})",
+                    x, e.graphics_buffer[i]
+                ),
             }
         }
     }
@@ -411,14 +413,15 @@ mod test {
     #[test]
     fn test_draw_wrapping() {
         // point address registry to 1 and render it on (0, 0)
-        let e = create_execute("
+        let e = create_execute(
+            "
         main:
             mov r1 1
             ldf r1
             mov r1 60
             mov r2 0
             draw r1 r2 5
-            "
+            ",
         );
 
         assert_eq!(e.graphics_buffer[7], 0x02, "byte {} is invalid", 7);
@@ -434,7 +437,11 @@ mod test {
         for i in 0..GRAPHICS_BUFFER_SIZE {
             match i {
                 7 | 8 | 15 | 16 | 23 | 24 | 31 | 32 | 39 | 40 => continue,
-                x => assert_eq!(e.graphics_buffer[i], 0x00, "byte {} is invalid (0x{:02x})", x, e.graphics_buffer[i]),
+                x => assert_eq!(
+                    e.graphics_buffer[i], 0x00,
+                    "byte {} is invalid (0x{:02x})",
+                    x, e.graphics_buffer[i]
+                ),
             }
         }
     }
@@ -442,14 +449,15 @@ mod test {
     #[test]
     fn test_draw_no_collision() {
         // Render 1 twice on the same location, should give a collision
-        let e = create_execute("
+        let e = create_execute(
+            "
         main:
             mov r1 1
             ldf r1
             mov r1 0
             mov r2 0
             draw r1 r2 5
-            "
+            ",
         );
         assert_eq!(e.registries[0x0F as usize], 0);
     }
@@ -457,7 +465,8 @@ mod test {
     #[test]
     fn test_draw_collision() {
         // Render 1 twice on the same location, should give a collision
-        let e = create_execute("
+        let e = create_execute(
+            "
         main:
             mov r1 1
             ldf r1
@@ -469,7 +478,7 @@ mod test {
             mov r1 0
             mov r2 0
             draw r1 r2 5
-            "
+            ",
         );
         assert_eq!(e.registries[0x0F as usize], 1);
     }

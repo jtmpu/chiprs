@@ -1,9 +1,8 @@
-
 use std::fs::File;
-use std::io::{self, BufReader, Write, Read};
+use std::io::{self, BufReader, Read, Write};
 
-use clap::{Parser, Subcommand, Args};
-use tracing::{Level, error};
+use clap::{Args, Parser, Subcommand};
+use tracing::{error, Level};
 
 use chip8;
 use chip8::assembly::lexer::Lexer;
@@ -73,22 +72,20 @@ fn configure_logger(args: &CliArgs) {
         Level::WARN
     };
 
-    let sub = tracing_subscriber::fmt()
-        .with_max_level(level);
+    let sub = tracing_subscriber::fmt().with_max_level(level);
 
     match args.log_format {
         LogFormat::Json => {
             sub.json().init();
-        }, 
+        }
         LogFormat::Pretty => {
             sub.pretty().init();
-        },
+        }
         LogFormat::Plain => {
             sub.init();
-        },
+        }
     };
 }
-
 
 fn main() {
     let args = CliArgs::parse();
@@ -97,11 +94,11 @@ fn main() {
     match &args.command {
         Some(Commands::Asm(a)) => {
             run_assembler(a, &args);
-        },
+        }
         Some(Commands::Disasm(a)) => {
             run_disassembler(a, &args);
-        },
-        None => {},
+        }
+        None => {}
     };
 }
 
@@ -133,7 +130,7 @@ fn run_assembler(args: &AssemblyCommands, _global_args: &CliArgs) {
 
     let binary = assembly.binary().unwrap();
     if let Some(output) = &args.output {
-        let mut file = File::create(output).unwrap(); 
+        let mut file = File::create(output).unwrap();
         file.write_all(binary.as_ref()).unwrap();
     } else {
         let mut stdout = io::stdout();
@@ -147,7 +144,7 @@ fn run_disassembler(args: &DisassembleCommands, _global_args: &CliArgs) {
     } else {
         Box::new(BufReader::new(io::stdin()))
     };
-    
+
     let mut buffer: Vec<u8> = Vec::new();
     reader.read_to_end(&mut buffer).unwrap();
 
@@ -164,7 +161,6 @@ fn run_disassembler(args: &DisassembleCommands, _global_args: &CliArgs) {
             None => {
                 error!("unknown opcode '0x{:02x}{:02x}'", b1, b2);
             }
-
         };
         cursor += 2;
     }

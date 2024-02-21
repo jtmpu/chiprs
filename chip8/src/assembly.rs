@@ -4,7 +4,7 @@ pub mod parser;
 use std::collections::HashMap;
 
 use crate::emulator::START_ADDR;
-use crate::instructions::{Instruction, u12};
+use crate::instructions::{u12, Instruction};
 
 #[derive(Debug)]
 pub enum BinaryError {
@@ -35,7 +35,7 @@ impl Assembly {
                     } else {
                         Instruction::Call(a)
                     }
-                },
+                }
                 Instruction::Jump(a) => {
                     if let Some(label) = &instr.label {
                         if let Some(offset) = self.labels.get(label) {
@@ -47,7 +47,7 @@ impl Assembly {
                     } else {
                         Instruction::Jump(a)
                     }
-                },
+                }
                 i => i,
             };
             let opcode = instruction.opcode();
@@ -85,7 +85,7 @@ pub struct Source {
 #[cfg(test)]
 mod test {
     use super::*;
-    
+
     #[test]
     fn test_addr_resolve() {
         let instructions = vec![
@@ -158,6 +158,12 @@ mod test {
             Instruction::Call(a) => a,
             _ => panic!("invalid opcode"),
         };
-        assert_eq!(a, addr, "expected addr '0x{:04x}', received '0x{:04x}'", addr.value(), a.value());
+        assert_eq!(
+            a,
+            addr,
+            "expected addr '0x{:04x}', received '0x{:04x}'",
+            addr.value(),
+            a.value()
+        );
     }
 }

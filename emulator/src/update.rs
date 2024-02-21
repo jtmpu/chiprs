@@ -1,5 +1,5 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::app::App;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub fn update(app: &mut App, key_event: KeyEvent) {
     match key_event.code {
@@ -8,9 +8,9 @@ pub fn update(app: &mut App, key_event: KeyEvent) {
             if key_event.modifiers == KeyModifiers::CONTROL {
                 app.quit()
             }
-        },
+        }
         KeyCode::Right | KeyCode::Char('j') => app.increment_counter(),
         KeyCode::Left | KeyCode::Char('k') => app.decrement_counter(),
-        _ => {},
+        _ => {}
     }
 }
