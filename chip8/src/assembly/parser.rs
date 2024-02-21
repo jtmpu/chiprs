@@ -815,7 +815,7 @@ mod test {
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
-        for (e, r) in (&expected).iter().zip(&assembly.instructions) {
+        for (e, r) in expected.iter().zip(&assembly.instructions) {
             assert_eq!(e, r);
         }
     }
@@ -952,7 +952,7 @@ mod test {
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
-        for (e, r) in (&expected).iter().zip(&assembly.instructions) {
+        for (e, r) in expected.iter().zip(&assembly.instructions) {
             assert_eq!(e, r);
         }
 
@@ -988,7 +988,7 @@ other:
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
-        for (e, r) in (&expected).iter().zip(&assembly.instructions) {
+        for (e, r) in expected.iter().zip(&assembly.instructions) {
             assert_eq!(e, r);
         }
 

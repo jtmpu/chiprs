@@ -239,7 +239,7 @@ mod tests {
     fn lex_and_assert(input: &str, expected: Vec<Token>) {
         let mut lexer = StreamLexer::new(BufReader::new(input.as_bytes()));
         let result = lexer.all().unwrap();
-        for (e, r) in (&expected).iter().zip(&result) {
+        for (e, r) in expected.iter().zip(&result) {
             assert_eq!(e, r, "Expected '{:?}', got '{:?}'", expected, result);
         }
     }
