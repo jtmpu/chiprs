@@ -32,7 +32,9 @@ pub const START_ADDR: usize = 0x200;
 
 pub const REGISTRY_COUNT: usize = 16;
 pub const STACK_SIZE: usize = 32;
-pub const GRAPHICS_BUFFER_SIZE: usize = 256;
+pub const DISPLAY_WIDTH: usize = 64;
+pub const DISPLAY_HEIGHT: usize = 32;
+pub const GRAPHICS_BUFFER_SIZE: usize = (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8;
 
 pub const DEFAULT_SPRITE_START_ADDR: usize = 0x00;
 pub const DEFAULT_SPRITES: [[u8; 5]; 2] = [
@@ -203,20 +205,19 @@ impl Emulator {
                 self.registries[regx.value() as usize] = vx | vy;
             },
             Instruction::Draw(regx, regy, n) => {
-                println!("drawing");
                 let mut vf = 0;
 
                 let x = self.registries[regx.value() as usize] as usize;
                 let y = self.registries[regy.value() as usize] as usize;
-                let start = x / 8 + y * 4;
+                let start = x / 8 + y * 8;
                 // render each line separetly
                 for i in 0..n.value() {
                     let sprite = self.memory[self.address_register + (i as usize)];
                     let sp1 = sprite >> x % 8;
-                    let (sp2, _) = sprite.overflowing_shl((8 - x % 8) as u32);
+                    let sp2 = ((sprite as u16) << (8 - (x % 8))) as u8;
 
-                    let i1 = start + (i as usize) * 4;
-                    let i2 = start + 1 + (i as usize) * 4;
+                    let i1 = start + (i as usize) * 8;
+                    let i2 = start + 1 + (i as usize) * 8;
 
                     let byte1 = self.graphics_buffer[i1];
                     self.graphics_buffer[i1] = byte1 ^ sp1;
@@ -253,6 +254,10 @@ impl Emulator {
                 _ => {},
             }
         }
+    }
+
+    pub fn copy_graphics_buffer(&self) -> [u8; GRAPHICS_BUFFER_SIZE] {
+        self.graphics_buffer.clone()
     }
 
     pub fn dump_state(&self) {
@@ -395,7 +400,12 @@ mod test {
         assert_eq!(e.graphics_buffer[8], 0x20, "byte {} is invalid", 8);
         assert_eq!(e.graphics_buffer[12], 0x20, "byte {} is invalid", 12);
         assert_eq!(e.graphics_buffer[16], 0x70, "byte {} is invalid", 16);
-
+        for i in 0..GRAPHICS_BUFFER_SIZE {
+            match i {
+                0 | 4 | 8 | 12 | 16 => continue,
+                x => assert_eq!(e.graphics_buffer[i], 0x00, "byte {} is invalid (0x{:02x})", x, e.graphics_buffer[i]),
+            }
+        }
     }
 
     #[test]

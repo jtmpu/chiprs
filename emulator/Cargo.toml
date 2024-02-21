@@ -9,6 +9,6 @@ edition = "2021"
 chip8 = { version = "0.1.0", path = "../chip8" }
 clap = { version = "4.5.0", features = ["derive"] }
 crossterm = "0.27.0"
-ratatui = "0.26.1"
+ratatui = { version = "0.26.1", features = ["unstable-widget-ref"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["fmt", "json", "env-filter"] }
