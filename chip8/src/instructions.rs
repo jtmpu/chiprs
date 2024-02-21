@@ -174,41 +174,41 @@ impl Instruction {
             Self::SkipNotEqual(reg, value) => {
                 let big: u16 = 0x40 | (reg.value() as u16);
                 let small: u16 = *value as u16;
-                return (big << 8) | small;
+                (big << 8) | small
             }
             Self::Move(reg, value) => {
                 let big: u16 = 0x60 | (reg.value() as u16);
                 let small: u16 = *value as u16;
-                return (big << 8) | small;
+                (big << 8) | small
             }
             Self::Add(reg, value) => {
                 let big: u16 = 0x70 | (reg.value() as u16);
                 let small: u16 = *value as u16;
-                return (big << 8) | small;
+                (big << 8) | small
             }
             Self::Or(regx, regy) => {
                 let big: u16 = 0x80 | (regx.value() as u16);
-                let small: u16 = (regy.value() as u16) << 4 | (0x01 as u16);
-                return (big << 8) | small;
+                let small: u16 = (regy.value() as u16) << 4 | 0x01_u16;
+                (big << 8) | small
             }
             Self::Draw(regx, regy, n) => {
                 let big: u16 = 0xd0 | (regx.value() as u16);
                 let small: u16 = (regy.value() as u16) << 4 | (n.value() as u16);
-                return (big << 8) | small;
+                (big << 8) | small
             }
             Self::SetMemRegisterDefaultSprit(regx) => {
                 let big: u16 = 0xF0 | (regx.value() as u16);
                 let small: u16 = 0x29;
-                return (big << 8) | small;
+                (big << 8) | small
             }
         }
     }
 
     pub fn to_assembly(&self) -> String {
         match self {
-            Self::Exit => format!("exit"),
-            Self::Clear => format!("clear"),
-            Self::Return => format!("ret"),
+            Self::Exit => "exit".to_string(),
+            Self::Clear => "clear".to_string(),
+            Self::Return => "ret".to_string(),
             Self::Jump(addr) => format!("jmp {}", addr.value()),
             Self::Call(addr) => format!("call {}", addr.value()),
             Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),

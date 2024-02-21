@@ -4,7 +4,7 @@ use std::io::{self, BufReader, Read, Write};
 use clap::{Args, Parser, Subcommand};
 use tracing::{error, Level};
 
-use chip8;
+
 use chip8::assembly::lexer::Lexer;
 use chip8::instructions::Instruction;
 
@@ -180,7 +180,7 @@ fn run_disassembler(args: &DisassembleCommands, _global_args: &CliArgs) {
 
     for i in instructions {
         let mut asm = i.to_assembly();
-        asm.push_str("\n");
+        asm.push('\n');
         writer.write_all(asm.as_bytes()).unwrap();
     }
 }

@@ -106,7 +106,7 @@ impl<T: Read> StreamLexer<T> {
         self.cursor += 1;
         self.column += 1;
 
-        Ok(ret as char)
+        Ok(ret)
     }
 
     fn collect(&mut self, first: char, pred: fn(char) -> bool) -> Result<Vec<char>, LexerError> {
@@ -176,7 +176,7 @@ impl<T: Read> Lexer for StreamLexer<T> {
                 Token::EOL
             }
             b if b == '\r' => {
-                if self.peek()? as char == '\n' {
+                if self.peek()? == '\n' {
                     self.pop()?;
                     self.line += 1;
                     self.column = 0;
@@ -239,7 +239,7 @@ mod tests {
     fn lex_and_assert(input: &str, expected: Vec<Token>) {
         let mut lexer = StreamLexer::new(BufReader::new(input.as_bytes()));
         let result = lexer.all().unwrap();
-        for (e, r) in (&expected).into_iter().zip(&result) {
+        for (e, r) in (&expected).iter().zip(&result) {
             assert_eq!(e, r, "Expected '{:?}', got '{:?}'", expected, result);
         }
     }

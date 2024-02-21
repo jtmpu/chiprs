@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::io::Write;
+
 
 mod app;
 mod event;

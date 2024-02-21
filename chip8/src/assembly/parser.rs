@@ -77,7 +77,7 @@ impl fmt::Display for ParsingError {
                     instruction,
                     location.0,
                     location.1,
-                    e.to_string()
+                    e
                 )
             }
             Self::UnknownInstruction(ref instr, location) => {
@@ -333,7 +333,7 @@ impl RawInstr {
         } else {
             return Err(ArgumentError::MissingArgument);
         };
-        let index = match value.strip_prefix("r") {
+        let index = match value.strip_prefix('r') {
             Some(n) => n,
             None => return Err(ArgumentError::MissingRegistryPrefix(value.clone())),
         };
@@ -475,11 +475,11 @@ impl Parser {
                 location,
             ));
         }
-        return Err(ParsingError::UnexpectedToken(
+        Err(ParsingError::UnexpectedToken(
             "parse:label:start",
             previous.clone(),
             location,
-        ));
+        ))
     }
 
     fn try_parse_instruction(&mut self, previous: &Token) -> Result<Line, ParsingError> {
@@ -692,10 +692,10 @@ impl Parser {
             }
         }
         // Unexpected token start
-        return Err(ParsingError::Unknown(format!(
+        Err(ParsingError::Unknown(format!(
             "failed to find complete instruction, starting with: {:?}",
             previous
-        )));
+        )))
     }
 
     fn try_parse_line(&mut self) -> Result<Option<Line>, ParsingError> {
@@ -716,18 +716,18 @@ impl Parser {
         let location = self.lexer.location();
         let token = self.pop()?;
         match &token {
-            Token::EOF => return Ok(None),
+            Token::EOF => Ok(None),
             Token::Semicolon => {
-                return self.try_parse_comment().map(|v| Some(v));
+                self.try_parse_comment().map(Some)
             }
             Token::Alphanumeric(_) => {
                 if matches!(self.peek()?, Token::Colon) {
-                    return self.try_parse_label(&token, location).map(|v| Some(v));
+                    return self.try_parse_label(&token, location).map(Some);
                 }
-                return self.try_parse_instruction(&token).map(|v| Some(v));
+                self.try_parse_instruction(&token).map(Some)
             }
             token => {
-                return Err(ParsingError::UnexpectedToken(
+                Err(ParsingError::UnexpectedToken(
                     "parse:line",
                     token.clone(),
                     location,
@@ -815,7 +815,7 @@ mod test {
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
-        for (e, r) in (&expected).into_iter().zip(&assembly.instructions) {
+        for (e, r) in (&expected).iter().zip(&assembly.instructions) {
             assert_eq!(e, r);
         }
     }
@@ -824,9 +824,9 @@ mod test {
     fn parse_clear() {
         parse_and_assert(
             "clear",
-            vec![Instruction::Clear]
+            [Instruction::Clear]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -835,9 +835,9 @@ mod test {
     fn parse_mov() {
         parse_and_assert(
             "mov r1 42",
-            vec![Instruction::Move(u4::little(0x01), 42)]
+            [Instruction::Move(u4::little(0x01), 42)]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -846,9 +846,9 @@ mod test {
     fn parse_jmp() {
         parse_and_assert(
             "jmp 123",
-            vec![Instruction::Jump(u12::from_u16(123))]
+            [Instruction::Jump(u12::from_u16(123))]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -857,9 +857,9 @@ mod test {
     fn parse_skip_not_equal() {
         parse_and_assert(
             "sne r5 10",
-            vec![Instruction::SkipNotEqual(u4::little(0x05), 10)]
+            [Instruction::SkipNotEqual(u4::little(0x05), 10)]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -868,9 +868,9 @@ mod test {
     fn parse_or() {
         parse_and_assert(
             "or r1 r2",
-            vec![Instruction::Or(0x01.into(), 0x02.into())]
+            [Instruction::Or(0x01.into(), 0x02.into())]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -879,9 +879,9 @@ mod test {
     fn parse_add() {
         parse_and_assert(
             "add r14 30",
-            vec![Instruction::Add(u4::little(14), 30)]
+            [Instruction::Add(u4::little(14), 30)]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -890,9 +890,9 @@ mod test {
     fn parse_abort() {
         parse_and_assert(
             "exit",
-            vec![Instruction::Exit]
+            [Instruction::Exit]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -901,9 +901,9 @@ mod test {
     fn parse_ret() {
         parse_and_assert(
             "ret",
-            vec![Instruction::Return]
+            [Instruction::Return]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -912,9 +912,9 @@ mod test {
     fn parse_call() {
         parse_and_assert(
             "call 123",
-            vec![Instruction::Call(123.into())]
+            [Instruction::Call(123.into())]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -923,9 +923,9 @@ mod test {
     fn parse_ldf() {
         parse_and_assert(
             "ldf r4",
-            vec![Instruction::SetMemRegisterDefaultSprit(4.into())]
+            [Instruction::SetMemRegisterDefaultSprit(4.into())]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -934,9 +934,9 @@ mod test {
     fn parse_draw() {
         parse_and_assert(
             "draw r3 r4 2",
-            vec![Instruction::Draw(3.into(), 4.into(), 2.into())]
+            [Instruction::Draw(3.into(), 4.into(), 2.into())]
                 .iter()
-                .map(|e| ParsedInstruction::new(e.clone()))
+                .map(|e| ParsedInstruction::new(*e))
                 .collect(),
         );
     }
@@ -944,15 +944,15 @@ mod test {
     #[test]
     fn parse_label() {
         let input = "main:\nadd r14 30";
-        let expected: Vec<ParsedInstruction> = vec![Instruction::Add(u4::little(14), 30)]
+        let expected: Vec<ParsedInstruction> = [Instruction::Add(u4::little(14), 30)]
             .iter()
-            .map(|e| ParsedInstruction::new(e.clone()))
+            .map(|e| ParsedInstruction::new(*e))
             .collect();
         let reader = BufReader::new(input.as_bytes());
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
-        for (e, r) in (&expected).into_iter().zip(&assembly.instructions) {
+        for (e, r) in (&expected).iter().zip(&assembly.instructions) {
             assert_eq!(e, r);
         }
 
@@ -988,7 +988,7 @@ other:
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
         let assembly = parser.parse().unwrap();
-        for (e, r) in (&expected).into_iter().zip(&assembly.instructions) {
+        for (e, r) in (&expected).iter().zip(&assembly.instructions) {
             assert_eq!(e, r);
         }
 

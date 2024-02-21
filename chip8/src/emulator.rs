@@ -4,7 +4,7 @@
 
 use std::error::Error;
 use std::fmt;
-use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::io::{Read, Write};
 
 use tracing::{debug, error, span, Level};
 
@@ -51,6 +51,12 @@ pub struct Emulator {
     address_register: usize,
     stack: [usize; STACK_SIZE],
     graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
+}
+
+impl Default for Emulator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Emulator {
@@ -136,22 +142,22 @@ impl Emulator {
                     error = ?e,
                     "failed to parse instruction opcode"
                 );
-                return Err(e.into());
+                return Err(e);
             }
         };
         self.program_counter += 2;
-        let res = match self.execute(instruction) {
+        
+        match self.execute(instruction) {
             Err(e) => {
                 error!(
                     pc = self.program_counter,
                     error = ?e,
                     "failed to execute instruction"
                 );
-                return Err(e.into());
+                Err(e)
             }
             res => res,
-        };
-        res
+        }
     }
 
     pub fn execute(&mut self, instruction: Instruction) -> Result<bool, Box<dyn Error>> {
@@ -208,7 +214,7 @@ impl Emulator {
                 // render each line separetly
                 for i in 0..n.value() {
                     let sprite = self.memory[self.address_register + (i as usize)];
-                    let sp1 = sprite >> x % 8;
+                    let sp1 = sprite >> (x % 8);
                     let sp2 = ((sprite as u16) << (8 - (x % 8))) as u8;
 
                     let i1 = start + (i as usize) * 8;
@@ -219,12 +225,12 @@ impl Emulator {
                     let byte2 = self.graphics_buffer[i2];
                     self.graphics_buffer[i2] = byte2 ^ sp2;
 
-                    vf = vf | ((byte1 ^ sp1) ^ (byte1 | sp1));
-                    vf = vf | ((byte2 ^ sp2) ^ (byte2 | sp2));
+                    vf |= (byte1 ^ sp1) ^ (byte1 | sp1);
+                    vf |= (byte2 ^ sp2) ^ (byte2 | sp2);
                 }
 
                 if vf > 0 {
-                    self.registries[0x0F as usize] = 1;
+                    self.registries[0x0F_usize] = 1;
                 }
             }
             Instruction::SetMemRegisterDefaultSprit(regx) => {
@@ -252,23 +258,23 @@ impl Emulator {
     }
 
     pub fn copy_graphics_buffer(&self) -> [u8; GRAPHICS_BUFFER_SIZE] {
-        self.graphics_buffer.clone()
+        self.graphics_buffer
     }
 
     pub fn dump_state(&self) {
         println!("Emulator state:");
-        println!("");
+        println!();
 
         println!("program-counter: {:04x}", self.program_counter);
         println!(" - instruction: {:?}", self.instruction());
-        println!("");
+        println!();
 
         println!("stack:");
         println!(" - stack-pointer: {}", self.stack_pointer);
         for index in (0..self.stack_pointer).rev() {
             println!("  [{}]: 0x{:04x}", index, self.stack[index]);
         }
-        println!("");
+        println!();
 
         let mut regstr = "regs: ".to_string();
         for (index, reg) in self.registries.iter().enumerate() {
@@ -459,7 +465,7 @@ mod test {
             draw r1 r2 5
             ",
         );
-        assert_eq!(e.registries[0x0F as usize], 0);
+        assert_eq!(e.registries[0x0F_usize], 0);
     }
 
     #[test]
@@ -480,6 +486,6 @@ mod test {
             draw r1 r2 5
             ",
         );
-        assert_eq!(e.registries[0x0F as usize], 1);
+        assert_eq!(e.registries[0x0F_usize], 1);
     }
 }

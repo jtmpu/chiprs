@@ -23,7 +23,7 @@ impl WidgetRef for Display {
 }
 
 impl Display {
-    pub fn new(width: usize, height: usize, buffer: [u8; emulator::GRAPHICS_BUFFER_SIZE]) -> Self {
+    pub fn new(_width: usize, _height: usize, buffer: [u8; emulator::GRAPHICS_BUFFER_SIZE]) -> Self {
         Self {
             //pixel_filled: "█",
             pixel_filled: "█",
@@ -49,7 +49,7 @@ impl Display {
                     x_byte += 1;
                 }
                 let byte = (x_byte - 1) + (8 * y);
-                let mask = ((0x1 as u32) << (7 - bit_index)) as u8;
+                let mask = (0x1_u32 << (7 - bit_index)) as u8;
                 let bit = self.buffer[byte as usize] & mask;
                 let pixel = if bit > 0 {
                     self.pixel_filled

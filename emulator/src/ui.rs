@@ -1,7 +1,5 @@
 use ratatui::{
-    prelude::{Alignment, Frame},
-    style::{Color, Style},
-    widgets::{Block, BorderType, Borders, Paragraph},
+    prelude::{Frame},
 };
 
 use crate::widgets::display::Display;

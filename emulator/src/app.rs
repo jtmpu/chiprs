@@ -44,9 +44,9 @@ impl App {
     pub fn load_and_run(
         &mut self,
         file: &str,
-        ticks: usize,
+        _ticks: usize,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut reader = File::open(file)?;
+        let reader = File::open(file)?;
         self.emulator.load(reader)?;
         self.emulator.run();
         Ok(())
