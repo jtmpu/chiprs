@@ -4,7 +4,7 @@
 
 use std::error::Error;
 use std::fmt;
-use std::io::{Read, Write};
+use std::io::{Read};
 
 use tracing::{debug, error, span, Level};
 
@@ -90,8 +90,8 @@ impl Emulator {
     /// These are placed in the 0x00-0x1FF range
     fn load_default_sprites(&mut self) -> std::io::Result<()> {
         for (offset, sprite) in DEFAULT_SPRITES.iter().enumerate() {
-            for i in 0..5 {
-                self.memory[DEFAULT_SPRITE_START_ADDR + (offset * 5) + i] = sprite[i];
+            for (i, item) in sprite.iter().enumerate() {
+                self.memory[DEFAULT_SPRITE_START_ADDR + (offset * 5) + i] = *item;
             }
         }
         Ok(())
@@ -171,7 +171,7 @@ impl Emulator {
                 // Currently noop
             }
             Instruction::Return => {
-                if self.stack_pointer <= 0 {
+                if self.stack_pointer == 0 {
                     return Err(Chip8Error::StackEmpty.into());
                 }
                 self.stack_pointer -= 1;

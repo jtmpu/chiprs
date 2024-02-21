@@ -163,26 +163,26 @@ impl<T: Read> Lexer for StreamLexer<T> {
 
         let byte = self.pop()?;
         let token = match byte {
-            b if b == ',' => Token::Comma,
-            b if b == ':' => Token::Colon,
-            b if b == ';' => Token::Semicolon,
+            ',' => Token::Comma,
+            ':' => Token::Colon,
+            ';' => Token::Semicolon,
             b if is_whitespace(b) => {
                 self.collect(b, is_whitespace)?;
                 Token::Whitespace
             }
-            b if b == '\n' => {
+            '\n' => {
                 self.line += 1;
                 self.column = 0;
                 Token::EOL
             }
-            b if b == '\r' => {
+            '\r' => {
                 if self.peek()? == '\n' {
                     self.pop()?;
                     self.line += 1;
                     self.column = 0;
                     Token::EOL
                 } else {
-                    Token::Symbol(b)
+                    Token::Symbol(byte)
                 }
             }
             b if b.is_ascii_punctuation() => Token::Symbol(b),
