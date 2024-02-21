@@ -396,13 +396,13 @@ mod test {
         );
 
         assert_eq!(e.graphics_buffer[0], 0x20, "byte {} is invalid", 0);
-        assert_eq!(e.graphics_buffer[4], 0x60, "byte {} is invalid", 4);
-        assert_eq!(e.graphics_buffer[8], 0x20, "byte {} is invalid", 8);
-        assert_eq!(e.graphics_buffer[12], 0x20, "byte {} is invalid", 12);
-        assert_eq!(e.graphics_buffer[16], 0x70, "byte {} is invalid", 16);
+        assert_eq!(e.graphics_buffer[8], 0x60, "byte {} is invalid", 8);
+        assert_eq!(e.graphics_buffer[16], 0x20, "byte {} is invalid", 16);
+        assert_eq!(e.graphics_buffer[24], 0x20, "byte {} is invalid", 24);
+        assert_eq!(e.graphics_buffer[32], 0x70, "byte {} is invalid", 32);
         for i in 0..GRAPHICS_BUFFER_SIZE {
             match i {
-                0 | 4 | 8 | 12 | 16 => continue,
+                0 | 8 | 16 | 24 | 32 => continue,
                 x => assert_eq!(e.graphics_buffer[i], 0x00, "byte {} is invalid (0x{:02x})", x, e.graphics_buffer[i]),
             }
         }
@@ -415,22 +415,28 @@ mod test {
         main:
             mov r1 1
             ldf r1
-            mov r1 28
+            mov r1 60
             mov r2 0
             draw r1 r2 5
             "
         );
 
-        assert_eq!(e.graphics_buffer[3], 0x02, "byte {} is invalid", 4);
-        assert_eq!(e.graphics_buffer[4], 0x00, "byte {} is invalid", 5);
-        assert_eq!(e.graphics_buffer[7], 0x06, "byte {} is invalid", 7);
+        assert_eq!(e.graphics_buffer[7], 0x02, "byte {} is invalid", 7);
         assert_eq!(e.graphics_buffer[8], 0x00, "byte {} is invalid", 8);
-        assert_eq!(e.graphics_buffer[11], 0x02, "byte {} is invalid", 11);
-        assert_eq!(e.graphics_buffer[12], 0x00, "byte {} is invalid", 12);
-        assert_eq!(e.graphics_buffer[15], 0x02, "byte {} is invalid", 15);
+        assert_eq!(e.graphics_buffer[15], 0x06, "byte {} is invalid", 15);
         assert_eq!(e.graphics_buffer[16], 0x00, "byte {} is invalid", 16);
-        assert_eq!(e.graphics_buffer[19], 0x07, "byte {} is invalid", 19);
-        assert_eq!(e.graphics_buffer[20], 0x00, "byte {} is invalid", 20);
+        assert_eq!(e.graphics_buffer[23], 0x02, "byte {} is invalid", 23);
+        assert_eq!(e.graphics_buffer[24], 0x00, "byte {} is invalid", 24);
+        assert_eq!(e.graphics_buffer[31], 0x02, "byte {} is invalid", 31);
+        assert_eq!(e.graphics_buffer[32], 0x00, "byte {} is invalid", 32);
+        assert_eq!(e.graphics_buffer[39], 0x07, "byte {} is invalid", 39);
+        assert_eq!(e.graphics_buffer[40], 0x00, "byte {} is invalid", 40);
+        for i in 0..GRAPHICS_BUFFER_SIZE {
+            match i {
+                7 | 8 | 15 | 16 | 23 | 24 | 31 | 32 | 39 | 40 => continue,
+                x => assert_eq!(e.graphics_buffer[i], 0x00, "byte {} is invalid (0x{:02x})", x, e.graphics_buffer[i]),
+            }
+        }
     }
 
     #[test]
