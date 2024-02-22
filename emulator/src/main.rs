@@ -2,9 +2,9 @@ use clap::Parser;
 
 use std::fs::File;
 
-use tracing::{info, span, Level};
+use tracing::{Level};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, Registry};
+use tracing_subscriber::{fmt};
 
 mod app;
 mod event;

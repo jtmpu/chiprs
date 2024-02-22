@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::mpsc::{channel, Sender},
     thread::JoinHandle,
 };
 
