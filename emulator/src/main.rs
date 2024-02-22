@@ -1,5 +1,11 @@
 use clap::Parser;
 
+use std::fs::File;
+
+use tracing::{info, span, Level};
+use tracing_subscriber::{fmt, Registry};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+
 mod app;
 mod event;
 mod tui;
@@ -13,23 +19,55 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use tui::Tui;
 use update::update;
 
+
+
 type Err = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Err>;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Arguments {
-    #[arg(short, long, default_value_t = 250)]
-    tick: usize,
+    #[arg(short, long)]
+    file: String,
+    #[arg(long, default_value_t = 30)]
+    fps: usize,
+    #[arg(long, default_value_t = 400)]
+    hz: usize,
+    #[arg(long, default_value_t = 100)]
+    timeboxes: usize,
 }
 
 fn main() -> Result<()> {
+    let args = Arguments::parse();
+    // Create a rolling file appender
+    File::create("emulator.log").unwrap();
+    let file_appender = RollingFileAppender::new(
+        Rotation::NEVER,
+        ".",
+        "emulator.log",
+    );
+
+    // Create a subscriber with the file appender
+    let subscriber = fmt::Subscriber::builder()
+        .with_max_level(Level::INFO)
+        .with_writer(file_appender)
+        .finish();
+
+    // Initialize the tracing subscriber
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+
     let mut app = App::new();
-    app.load_and_run("emulator/examples/render-digits.bin", 5)?;
+    app.load_and_run(
+        &args.file,
+        args.hz, 
+        args.timeboxes
+    ).unwrap();
 
     let backend = CrosstermBackend::new(std::io::stderr());
     let terminal = Terminal::new(backend)?;
-    let events = EventHandler::new(250);
+    let tick_rate = 1_000_000 / args.fps;
+    let events = EventHandler::new(tick_rate as u64);
     let mut tui = Tui::new(terminal, events);
     tui.enter()?;
 
@@ -37,7 +75,7 @@ fn main() -> Result<()> {
         tui.draw(&mut app)?;
 
         match tui.events.next()? {
-            Event::Tick => app.tick(),
+            Event::Tick => {},
             Event::Key(key_event) => update(&mut app, key_event),
             Event::Mouse(_) => {}
             Event::Resize(_, _) => {}

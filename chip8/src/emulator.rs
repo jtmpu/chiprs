@@ -165,7 +165,7 @@ impl Emulator {
         let instruction = match self.instruction() {
             Ok(i) => i,
             Err(e) => {
-                error!(
+                debug!(
                     pc = self.program_counter,
                     error = ?e,
                     "failed to parse instruction opcode"
@@ -177,7 +177,7 @@ impl Emulator {
 
         match self.execute(instruction) {
             Err(e) => {
-                error!(
+                debug!(
                     pc = self.program_counter,
                     error = ?e,
                     "failed to execute instruction"
@@ -287,28 +287,6 @@ impl Emulator {
 
     pub fn copy_graphics_buffer(&self) -> [u8; GRAPHICS_BUFFER_SIZE] {
         self.graphics_buffer
-    }
-
-    pub fn dump_state(&self) {
-        println!("Emulator state:");
-        println!();
-
-        println!("program-counter: {:04x}", self.program_counter);
-        println!(" - instruction: {:?}", self.instruction());
-        println!();
-
-        println!("stack:");
-        println!(" - stack-pointer: {}", self.stack_pointer);
-        for index in (0..self.stack_pointer).rev() {
-            println!("  [{}]: 0x{:04x}", index, self.stack[index]);
-        }
-        println!();
-
-        let mut regstr = "regs: ".to_string();
-        for (index, reg) in self.registries.iter().enumerate() {
-            regstr.push_str(format!(" r{}:{:02x}", index, reg).as_str());
-        }
-        println!("{}", regstr);
     }
 }
 

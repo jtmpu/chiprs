@@ -29,4 +29,7 @@ main:
     mov r1 12
     mov r2 8
     draw r1 r2 5
+loop:
+    mov r1 0
+    jmp loop
     exit

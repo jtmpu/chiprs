@@ -32,7 +32,7 @@ pub struct EventHandler {
 
 impl EventHandler {
     pub fn new(tick_rate: u64) -> Self {
-        let tick_rate = Duration::from_millis(tick_rate);
+        let tick_rate = Duration::from_micros(tick_rate);
         let (sender, receiver) = mpsc::channel();
         let handler = {
             let sender = sender.clone();
