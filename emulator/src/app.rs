@@ -1,15 +1,12 @@
 use std::{
     fs::File,
-    sync::mpsc::{Sender, Receiver, channel},
+    sync::mpsc::{channel, Receiver, Sender},
     thread::JoinHandle,
 };
 
 use tracing::info;
 
-use chip8::{
-    emulator,
-    machine,
-};
+use chip8::{emulator, machine};
 
 pub struct App {
     pub should_quit: bool,

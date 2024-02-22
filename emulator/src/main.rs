@@ -3,8 +3,8 @@ use clap::Parser;
 use std::fs::File;
 
 use tracing::{info, span, Level};
-use tracing_subscriber::{fmt, Registry};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::{fmt, Registry};
 
 mod app;
 mod event;
@@ -18,8 +18,6 @@ use event::{Event, EventHandler};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use tui::Tui;
 use update::update;
-
-
 
 type Err = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Err>;
@@ -41,11 +39,7 @@ fn main() -> Result<()> {
     let args = Arguments::parse();
     // Create a rolling file appender
     File::create("emulator.log").unwrap();
-    let file_appender = RollingFileAppender::new(
-        Rotation::NEVER,
-        ".",
-        "emulator.log",
-    );
+    let file_appender = RollingFileAppender::new(Rotation::NEVER, ".", "emulator.log");
 
     // Create a subscriber with the file appender
     let subscriber = fmt::Subscriber::builder()
@@ -56,13 +50,9 @@ fn main() -> Result<()> {
     // Initialize the tracing subscriber
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-
     let mut app = App::new();
-    app.load_and_run(
-        &args.file,
-        args.hz, 
-        args.timeboxes
-    ).unwrap();
+    app.load_and_run(&args.file, args.hz, args.timeboxes)
+        .unwrap();
 
     let backend = CrosstermBackend::new(std::io::stderr());
     let terminal = Terminal::new(backend)?;
@@ -75,7 +65,7 @@ fn main() -> Result<()> {
         tui.draw(&mut app)?;
 
         match tui.events.next()? {
-            Event::Tick => {},
+            Event::Tick => {}
             Event::Key(key_event) => update(&mut app, key_event),
             Event::Mouse(_) => {}
             Event::Resize(_, _) => {}

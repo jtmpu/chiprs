@@ -4,10 +4,9 @@
 /// a communication interface to manage and retrieve information
 /// about the emulator
 ///
-
 use std::{
+    sync::mpsc::{Receiver, Sender},
     thread::{self, JoinHandle},
-    sync::mpsc::{Sender, Receiver}, 
     time::{Duration, Instant},
 };
 
@@ -20,7 +19,7 @@ pub enum Message {
     SendGraphics(Sender<[u8; GRAPHICS_BUFFER_SIZE]>),
 }
 
-pub struct Machine  {
+pub struct Machine {
     // The "CPU" Hz, commonly between 400-4000
     hertz: usize,
     // Divide second into <timeboxes> many controlled executions
@@ -31,7 +30,12 @@ pub struct Machine  {
 }
 
 impl Machine {
-    pub fn new(hertz: usize, timeboxes: usize, emulator: Emulator, receiver: Receiver<Message>) -> Self {
+    pub fn new(
+        hertz: usize,
+        timeboxes: usize,
+        emulator: Emulator,
+        receiver: Receiver<Message>,
+    ) -> Self {
         Self {
             hertz,
             timeboxes,
@@ -51,16 +55,16 @@ impl Machine {
         match message {
             Message::Terminate => {
                 info!("received terminate");
-                return true
-            },
+                return true;
+            }
             Message::SendGraphics(channel) => {
                 debug!("received graphics request");
                 match channel.send(self.emulator.copy_graphics_buffer()) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(_) => {
                         info!("failed to send graphics buffer, terminating");
-                        return true
-                    },
+                        return true;
+                    }
                 };
             }
         };
@@ -89,15 +93,18 @@ impl Machine {
                 }
 
                 match self.emulator.tick() {
-                    Ok(_) => {},
-                    Err(_) => {},
+                    Ok(_) => {}
+                    Err(_) => {}
                 }
                 ticks += 1;
             } else {
                 if last_tick.elapsed().as_nanos() < delay_per_timebox {
                     // listen for message requests until we can execute more ticks
                     let timeout = delay_per_timebox - last_tick.elapsed().as_nanos();
-                    let should_abort = match self.receiver.recv_timeout(Duration::from_nanos(timeout as u64)) {
+                    let should_abort = match self
+                        .receiver
+                        .recv_timeout(Duration::from_nanos(timeout as u64))
+                    {
                         Ok(message) => self.process_message(message),
                         Err(_) => false,
                     };
