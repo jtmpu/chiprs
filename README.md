@@ -17,7 +17,7 @@ Simple smaller stuff
 Bigger stuff
 
 - [ ] Support key press from ratatui <-> emulator
-- [ ] Find a simple way to separate and control ticks for emulator and rendering
+- [x] Find a simple way to separate and control ticks for emulator and rendering
 - [ ] Diagnostics UI in ratatui
   - Pause, step, (maybe step back?)
   - Show registries, stacks, allow read/write of memory 
