@@ -339,10 +339,10 @@ impl Emulator {
             }
             Instruction::SetRegisterDelayTimer(regx) => {
                 self.registries[regx.value() as usize] = self.delay_timer;
-            },
+            }
             Instruction::SetDelayTimer(regx) => {
                 self.delay_timer = self.registries[regx.value() as usize];
-            },
+            }
         };
         Ok(true)
     }
@@ -354,7 +354,7 @@ impl Emulator {
         if self.delay_timer > 0 {
             if let Some(last_delay_decrement) = self.last_delay_decrement {
                 if last_delay_decrement.elapsed().as_micros() > TIME_BETWEEN_DECREMENT {
-                    self.delay_timer -= 1; 
+                    self.delay_timer -= 1;
                     self.last_delay_decrement = Some(Instant::now());
                 }
 
@@ -685,8 +685,7 @@ mod test {
 
     #[test]
     fn test_delay_timer_start() {
-        let input = 
-            "
+        let input = "
         main:
             mov r1 3
             mov r3 0
@@ -714,8 +713,7 @@ mod test {
 
     #[test]
     fn test_delay_timer_tick() {
-        let input = 
-            "
+        let input = "
         main:
             mov r1 3
             mov r3 0
