@@ -26,7 +26,8 @@ Bigger stuff
 
 ## Examples
 
-![bild](https://github.com/jtmpu/chiprs/assets/20316416/ad80cd4e-0009-4e9c-8f7c-34d2ec1b08da)
+![bild](https://github.com/jtmpu/chiprs/assets/20316416/64e6a7e6-1cef-46bc-becd-75c0088cb9ca)
+
 
 Pipe outputs of the asm/disasm operations into each other, or emulator to execute the binary later on
 
