@@ -9,16 +9,20 @@ use chip8::emulator::{self, Message};
 
 pub struct App {
     pub should_quit: bool,
+    pub graphics_buffer: [u8; emulator::GRAPHICS_BUFFER_SIZE],
     sender: Option<Sender<emulator::Message>>,
     handle: Option<JoinHandle<emulator::Emulator>>,
+    emulator: Option<emulator::Emulator>,
 }
 
 impl App {
     pub fn new() -> Self {
         Self {
             should_quit: false,
+            graphics_buffer: [0; emulator::GRAPHICS_BUFFER_SIZE],
             sender: None,
             handle: None,
+            emulator: None,
         }
     }
 
@@ -27,7 +31,10 @@ impl App {
 
         self.should_quit = true;
         if let Some(sender) = &self.sender {
-            sender.send(Message::Pause).unwrap();
+            match sender.send(Message::Pause) {
+                Ok(_) => {}
+                Err(_) => {}
+            }
         }
 
         if let Some(handle) = self.handle.take() {
@@ -35,13 +42,24 @@ impl App {
         }
     }
 
-    pub fn get_graphics_buffer(&self) -> [u8; emulator::GRAPHICS_BUFFER_SIZE] {
+    pub fn request_data(&mut self) {
         if let Some(sender) = &self.sender {
             let (gs, gr) = channel();
-            sender.send(Message::SendGraphics(gs)).unwrap();
-            gr.recv().unwrap()
-        } else {
-            [0; emulator::GRAPHICS_BUFFER_SIZE]
+            info!("getting graphics buffer");
+            if let Ok(_) = sender.send(Message::SendGraphics(gs)) {
+                if let Ok(buffer) = gr.recv() {
+                    self.graphics_buffer = buffer;
+                    return;
+                }
+            }
+
+            // An error occurred == channel disconnect
+            // the emulator has paused.
+            if let Some(handle) = self.handle.take() {
+                let emulator = handle.join().unwrap();
+                self.graphics_buffer = emulator.copy_graphics_buffer();
+                self.emulator = Some(emulator);
+            }
         }
     }
 
@@ -51,15 +69,14 @@ impl App {
         hertz: usize,
         timeboxes: usize,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = channel();
         let emulator = emulator::Builder::new()
             .with_hertz(hertz)
             .with_timeboxes(timeboxes)
-            .with_channel(receiver)
             .load_program(file)
             .unwrap();
+        let (sender, receiver) = channel();
         self.sender = Some(sender);
-        self.handle = Some(emulator.run());
+        self.handle = Some(emulator.run(Some(receiver)));
         Ok(())
     }
 }

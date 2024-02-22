@@ -62,6 +62,7 @@ fn main() -> Result<()> {
     tui.enter()?;
 
     while !app.should_quit {
+        app.request_data();
         tui.draw(&mut app)?;
 
         match tui.events.next()? {

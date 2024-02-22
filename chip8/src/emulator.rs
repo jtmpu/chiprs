@@ -91,7 +91,6 @@ pub enum Message {
 pub struct Builder {
     hertz: usize,
     timeboxes: usize,
-    receiver: Option<Receiver<Message>>,
 }
 
 impl Builder {
@@ -99,7 +98,6 @@ impl Builder {
         Self {
             hertz: 400,
             timeboxes: 100,
-            receiver: None,
         }
     }
 
@@ -113,13 +111,8 @@ impl Builder {
         self
     }
 
-    pub fn with_channel(mut self, receiver: Receiver<Message>) -> Self {
-        self.receiver = Some(receiver);
-        self
-    }
-
     pub fn load_program(self, filepath: &str) -> Result<Emulator, Chip8Error> {
-        let mut emulator = Emulator::new(self.hertz, self.timeboxes, self.receiver);
+        let mut emulator = Emulator::new(self.hertz, self.timeboxes);
         emulator.reset();
         let file = File::open(filepath)?;
         emulator.load(file)?;
@@ -147,7 +140,7 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    fn new(hertz: usize, timeboxes: usize, receiver: Option<Receiver<Message>>) -> Self {
+    fn new(hertz: usize, timeboxes: usize) -> Self {
         let mut ret = Self {
             memory: [0; MEMSIZE],
             registries: [0; REGISTRY_COUNT],
@@ -158,7 +151,7 @@ impl Emulator {
             graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
             hertz,
             timeboxes,
-            receiver,
+            receiver: None,
         };
         ret.reset();
         ret
@@ -343,10 +336,15 @@ impl Emulator {
     ///
     /// runs the emulator in a separate thread
     ///
-    pub fn run(self) -> JoinHandle<Emulator> {
+    pub fn run(self, receiver: Option<Receiver<Message>>) -> JoinHandle<Emulator> {
         thread::spawn(move || {
             let mut owned = self;
+            owned.receiver = receiver;
             owned.threaded_run();
+            if let Some(recv) = owned.receiver.take() {
+                // Deallocating receiver allows the blocked send to unblock
+                drop(recv);
+            }
             owned
         })
     }
@@ -368,8 +366,8 @@ impl Emulator {
                 if let Some(receiver) = &self.receiver {
                     let should_abort = match receiver.try_recv() {
                         Ok(message) => self.process_message(message),
-                        Err(error) => {
-                            error!(%error, "failed polling receiver for message");
+                        Err(_) => {
+                            // error!(%error, "failed polling receiver for message");
                             false
                         }
                     };
@@ -380,7 +378,10 @@ impl Emulator {
 
                 match self.tick() {
                     Ok(_) => {}
-                    Err(_) => {}
+                    Err(error) => {
+                        error!(%error, "pausing emulator execution");
+                        break;
+                    }
                 }
                 ticks += 1;
             } else {
@@ -392,8 +393,8 @@ impl Emulator {
                         let should_abort =
                             match receiver.recv_timeout(Duration::from_nanos(timeout as u64)) {
                                 Ok(message) => self.process_message(message),
-                                Err(error) => {
-                                    error!(%error, "failed polling receiver for message");
+                                Err(_) => {
+                                    // error!(%error, "failed polling receiver for message");
                                     false
                                 }
                             };
@@ -446,7 +447,7 @@ mod test {
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
         let binary = parser.parse().unwrap().binary().unwrap();
-        let mut emulator = Emulator::new(400, 100, None);
+        let mut emulator = Emulator::new(400, 100);
         let cursor = Cursor::new(binary);
         emulator.load(cursor).unwrap();
         loop {
