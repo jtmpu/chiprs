@@ -4,8 +4,6 @@ use chip8::emulator::{self, Emulator};
 
 pub struct App {
     pub should_quit: bool,
-    pub counter: i64,
-
     emulator: Emulator,
 }
 
@@ -13,7 +11,6 @@ impl App {
     pub fn new() -> Self {
         Self {
             should_quit: false,
-            counter: 0,
             emulator: Emulator::new(),
         }
     }
@@ -23,18 +20,6 @@ impl App {
 
     pub fn quit(&mut self) {
         self.should_quit = true;
-    }
-
-    pub fn increment_counter(&mut self) {
-        if let Some(res) = self.counter.checked_add(1) {
-            self.counter = res;
-        }
-    }
-
-    pub fn decrement_counter(&mut self) {
-        if let Some(res) = self.counter.checked_sub(1) {
-            self.counter = res;
-        }
     }
 
     pub fn get_graphics_buffer(&self) -> [u8; emulator::GRAPHICS_BUFFER_SIZE] {
