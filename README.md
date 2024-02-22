@@ -5,6 +5,25 @@
 * Assembly - binary to assemble and disassemble chip-8
 * Emulator - execute chip-8 code
 
+## TODO
+
+Simple smaller stuff
+
+- [ ] Support hex digits in instructions (0xff e.g.)
+- [ ] Refactor parser.rs and clean it up
+- [ ] Add more of the simpler instructions
+- [ ] Headless emulator
+
+Bigger stuff
+
+- [ ] Support key press from ratatui <-> emulator
+- [ ] Find a simple way to separate and control ticks for emulator and rendering
+- [ ] Diagnostics UI in ratatui
+  - Pause, step, (maybe step back?)
+  - Show registries, stacks, allow read/write of memory 
+- [ ] Diagnostics CLI
+- [ ] Multi-file support in assembly
+
 ## Examples
 
 ![bild](https://github.com/jtmpu/chiprs/assets/20316416/ad80cd4e-0009-4e9c-8f7c-34d2ec1b08da)
