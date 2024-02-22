@@ -45,7 +45,7 @@ impl App {
         if let Some(sender) = &self.sender {
             let (gs, gr) = channel();
             info!("getting graphics buffer");
-            if let Ok(_) = sender.send(Message::SendGraphics(gs)) {
+            if sender.send(Message::SendGraphics(gs)).is_ok() {
                 if let Ok(buffer) = gr.recv() {
                     self.graphics_buffer = buffer;
                     return;
