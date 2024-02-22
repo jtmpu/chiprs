@@ -1,26 +1,37 @@
 //!
 //! Chip-8 emulator
 //!
+use std::{
+    error::Error,
+    fmt,
+    fs::File,
+    io::{self, Read},
+    sync::mpsc::{Receiver, Sender},
+    thread::{self, JoinHandle},
+    time::{Duration, Instant},
+};
 
-use std::error::Error;
-use std::fmt;
-use std::io::Read;
-
-use tracing::{debug, error, span, Level};
+use tracing::{debug, error, info, span, Level};
 
 use crate::instructions::Instruction;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Chip8Error {
     UnimplementedInstruction,
     InvalidOpcode(String),
     StackEmpty,
     StackFull,
+    IO(io::Error),
 }
 
 impl fmt::Display for Chip8Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "chip-8 failure: {:?}", self)
+    }
+}
+impl From<io::Error> for Chip8Error {
+    fn from(err: io::Error) -> Self {
+        Chip8Error::IO(err)
     }
 }
 impl Error for Chip8Error {}
@@ -70,7 +81,54 @@ pub const DEFAULT_SPRITES: [[u8; 5]; 16] = [
     [0xF0, 0x80, 0xF0, 0x80, 0x80],
 ];
 
+// Control/read messages supported by the
+// chip-8 emulator
+pub enum Message {
+    Pause,
+    SendGraphics(Sender<[u8; GRAPHICS_BUFFER_SIZE]>),
+}
+
+pub struct Builder {
+    hertz: usize,
+    timeboxes: usize,
+    receiver: Option<Receiver<Message>>,
+}
+
+impl Builder {
+    pub fn new() -> Self {
+        Self {
+            hertz: 400,
+            timeboxes: 100,
+            receiver: None,
+        }
+    }
+
+    pub fn with_hertz(mut self, hertz: usize) -> Self {
+        self.hertz = hertz;
+        self
+    }
+
+    pub fn with_timeboxes(mut self, timeboxes: usize) -> Self {
+        self.timeboxes = timeboxes;
+        self
+    }
+
+    pub fn with_channel(mut self, receiver: Receiver<Message>) -> Self {
+        self.receiver = Some(receiver);
+        self
+    }
+
+    pub fn load_program(self, filepath: &str) -> Result<Emulator, Chip8Error> {
+        let mut emulator = Emulator::new(self.hertz, self.timeboxes, self.receiver);
+        emulator.reset();
+        let file = File::open(filepath)?;
+        emulator.load(file)?;
+        Ok(emulator)
+    }
+}
+
 pub struct Emulator {
+    // hardware
     memory: [u8; MEMSIZE],
     registries: [u8; REGISTRY_COUNT],
     program_counter: usize,
@@ -79,16 +137,17 @@ pub struct Emulator {
     address_register: usize,
     stack: [usize; STACK_SIZE],
     graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
-}
 
-impl Default for Emulator {
-    fn default() -> Self {
-        Self::new()
-    }
+    // configurations
+    hertz: usize,
+    timeboxes: usize,
+
+    // thread communication
+    receiver: Option<Receiver<Message>>,
 }
 
 impl Emulator {
-    pub fn new() -> Self {
+    fn new(hertz: usize, timeboxes: usize, receiver: Option<Receiver<Message>>) -> Self {
         let mut ret = Self {
             memory: [0; MEMSIZE],
             registries: [0; REGISTRY_COUNT],
@@ -97,6 +156,9 @@ impl Emulator {
             address_register: 0,
             stack: [0; STACK_SIZE],
             graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
+            hertz,
+            timeboxes,
+            receiver,
         };
         ret.reset();
         ret
@@ -133,7 +195,7 @@ impl Emulator {
         ret
     }
 
-    pub fn load<T: Read>(&mut self, mut reader: T) -> Result<(), Box<dyn Error>> {
+    pub fn load<T: Read>(&mut self, mut reader: T) -> Result<(), Chip8Error> {
         self.reset();
         let bytes = match reader.read(&mut self.memory[START_ADDR..]) {
             Ok(n) => n,
@@ -274,19 +336,100 @@ impl Emulator {
         Ok(true)
     }
 
-    /// Executes machine until abort opcode is called
-    pub fn run(&mut self) {
-        loop {
-            match self.tick() {
-                Ok(false) => break,
-                Err(_) => break,
-                _ => {}
-            }
-        }
-    }
-
     pub fn copy_graphics_buffer(&self) -> [u8; GRAPHICS_BUFFER_SIZE] {
         self.graphics_buffer
+    }
+
+    ///
+    /// runs the emulator in a separate thread
+    ///
+    pub fn run(self) -> JoinHandle<Emulator> {
+        thread::spawn(move || {
+            let mut owned = self;
+            owned.threaded_run();
+            owned
+        })
+    }
+
+    // the main loop of the emulator when executing in a thread
+    fn threaded_run(&mut self) {
+        let delay_per_second = 1_000_000_000;
+        let delay_per_timebox = (delay_per_second / self.timeboxes) as u128;
+        let ticks_per_timebox = self.hertz / self.timeboxes;
+
+        info!(%ticks_per_timebox, %delay_per_timebox, "starting chip-8 machine");
+        let mut ticks = 0;
+        let mut last_tick = Instant::now();
+        loop {
+            if ticks < ticks_per_timebox {
+                // keep ticking while we're allowed in the timebox
+                // check and handle any message requests if a receiver
+                // exists
+                if let Some(receiver) = &self.receiver {
+                    let should_abort = match receiver.try_recv() {
+                        Ok(message) => self.process_message(message),
+                        Err(error) => {
+                            error!(%error, "failed polling receiver for message");
+                            false
+                        }
+                    };
+                    if should_abort {
+                        break;
+                    }
+                }
+
+                match self.tick() {
+                    Ok(_) => {}
+                    Err(_) => {}
+                }
+                ticks += 1;
+            } else {
+                if last_tick.elapsed().as_nanos() < delay_per_timebox {
+                    // listen for message requests, or if no receiver is configured sleep,
+                    // until we can execute more ticks
+                    let timeout = delay_per_timebox - last_tick.elapsed().as_nanos();
+                    if let Some(receiver) = &self.receiver {
+                        let should_abort =
+                            match receiver.recv_timeout(Duration::from_nanos(timeout as u64)) {
+                                Ok(message) => self.process_message(message),
+                                Err(error) => {
+                                    error!(%error, "failed polling receiver for message");
+                                    false
+                                }
+                            };
+                        if should_abort {
+                            break;
+                        }
+                    } else {
+                        thread::sleep(Duration::from_nanos(timeout as u64));
+                    }
+                }
+                ticks = 0;
+                last_tick = Instant::now();
+            }
+        }
+
+        info!("pausing chip-8 machine");
+    }
+
+    fn process_message(&self, message: Message) -> bool {
+        match message {
+            Message::Pause => {
+                info!("received pause");
+                return true;
+            }
+            Message::SendGraphics(channel) => {
+                debug!("received graphics request");
+                match channel.send(self.copy_graphics_buffer()) {
+                    Ok(_) => {}
+                    Err(_) => {
+                        info!("failed to send graphics buffer, terminating");
+                        return true;
+                    }
+                };
+            }
+        };
+        false
     }
 }
 
@@ -303,10 +446,16 @@ mod test {
         let lexer = StreamLexer::new(reader);
         let mut parser = Parser::new(Box::new(lexer));
         let binary = parser.parse().unwrap().binary().unwrap();
-        let mut emulator = Emulator::new();
+        let mut emulator = Emulator::new(400, 100, None);
         let cursor = Cursor::new(binary);
         emulator.load(cursor).unwrap();
-        emulator.run();
+        loop {
+            match emulator.tick() {
+                Ok(false) => break,
+                Err(_) => break,
+                _ => {}
+            }
+        }
         emulator
     }
 

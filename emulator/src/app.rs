@@ -1,17 +1,16 @@
 use std::{
-    fs::File,
     sync::mpsc::{channel, Sender},
     thread::JoinHandle,
 };
 
 use tracing::info;
 
-use chip8::{emulator, machine};
+use chip8::emulator::{self, Message};
 
 pub struct App {
     pub should_quit: bool,
-    sender: Option<Sender<machine::Message>>,
-    handle: Option<JoinHandle<()>>,
+    sender: Option<Sender<emulator::Message>>,
+    handle: Option<JoinHandle<emulator::Emulator>>,
 }
 
 impl App {
@@ -28,7 +27,7 @@ impl App {
 
         self.should_quit = true;
         if let Some(sender) = &self.sender {
-            sender.send(machine::Message::Terminate).unwrap();
+            sender.send(Message::Pause).unwrap();
         }
 
         if let Some(handle) = self.handle.take() {
@@ -39,7 +38,7 @@ impl App {
     pub fn get_graphics_buffer(&self) -> [u8; emulator::GRAPHICS_BUFFER_SIZE] {
         if let Some(sender) = &self.sender {
             let (gs, gr) = channel();
-            sender.send(machine::Message::SendGraphics(gs)).unwrap();
+            sender.send(Message::SendGraphics(gs)).unwrap();
             gr.recv().unwrap()
         } else {
             [0; emulator::GRAPHICS_BUFFER_SIZE]
@@ -52,13 +51,15 @@ impl App {
         hertz: usize,
         timeboxes: usize,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let reader = File::open(file)?;
-        let mut emulator = emulator::Emulator::new();
-        emulator.load(reader)?;
         let (sender, receiver) = channel();
-        let machine = machine::Machine::new(hertz, timeboxes, emulator, receiver);
+        let emulator = emulator::Builder::new()
+            .with_hertz(hertz)
+            .with_timeboxes(timeboxes)
+            .with_channel(receiver)
+            .load_program(file)
+            .unwrap();
         self.sender = Some(sender);
-        self.handle = Some(machine.start());
+        self.handle = Some(emulator.run());
         Ok(())
     }
 }
