@@ -1,6 +1,4 @@
-use ratatui::{
-    prelude::{Frame},
-};
+use ratatui::prelude::Frame;
 
 use crate::widgets::display::Display;
 

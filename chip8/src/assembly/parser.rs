@@ -74,10 +74,7 @@ impl fmt::Display for ParsingError {
                 write!(
                     f,
                     "Failed parsing instruction '{}' (Loc: {},{}), argument error: {}",
-                    instruction,
-                    location.0,
-                    location.1,
-                    e
+                    instruction, location.0, location.1, e
                 )
             }
             Self::UnknownInstruction(ref instr, location) => {
@@ -717,22 +714,18 @@ impl Parser {
         let token = self.pop()?;
         match &token {
             Token::EOF => Ok(None),
-            Token::Semicolon => {
-                self.try_parse_comment().map(Some)
-            }
+            Token::Semicolon => self.try_parse_comment().map(Some),
             Token::Alphanumeric(_) => {
                 if matches!(self.peek()?, Token::Colon) {
                     return self.try_parse_label(&token, location).map(Some);
                 }
                 self.try_parse_instruction(&token).map(Some)
             }
-            token => {
-                Err(ParsingError::UnexpectedToken(
-                    "parse:line",
-                    token.clone(),
-                    location,
-                ))
-            }
+            token => Err(ParsingError::UnexpectedToken(
+                "parse:line",
+                token.clone(),
+                location,
+            )),
         }
     }
 

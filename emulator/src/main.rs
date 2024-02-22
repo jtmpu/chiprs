@@ -1,6 +1,5 @@
 use clap::Parser;
 
-
 mod app;
 mod event;
 mod tui;

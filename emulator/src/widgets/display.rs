@@ -23,7 +23,11 @@ impl WidgetRef for Display {
 }
 
 impl Display {
-    pub fn new(_width: usize, _height: usize, buffer: [u8; emulator::GRAPHICS_BUFFER_SIZE]) -> Self {
+    pub fn new(
+        _width: usize,
+        _height: usize,
+        buffer: [u8; emulator::GRAPHICS_BUFFER_SIZE],
+    ) -> Self {
         Self {
             //pixel_filled: "█",
             pixel_filled: "█",

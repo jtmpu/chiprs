@@ -4,7 +4,6 @@ use std::io::{self, BufReader, Read, Write};
 use clap::{Args, Parser, Subcommand};
 use tracing::{error, Level};
 
-
 use chip8::assembly::lexer::Lexer;
 use chip8::instructions::Instruction;
 

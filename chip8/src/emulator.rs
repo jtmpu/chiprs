@@ -4,7 +4,7 @@
 
 use std::error::Error;
 use std::fmt;
-use std::io::{Read};
+use std::io::Read;
 
 use tracing::{debug, error, span, Level};
 
@@ -174,7 +174,7 @@ impl Emulator {
             }
         };
         self.program_counter += 2;
-        
+
         match self.execute(instruction) {
             Err(e) => {
                 error!(
