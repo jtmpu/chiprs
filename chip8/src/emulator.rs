@@ -81,6 +81,9 @@ pub const DEFAULT_SPRITES: [[u8; 5]; 16] = [
     [0xF0, 0x80, 0xF0, 0x80, 0x80],
 ];
 
+// 60 hz at microsecond scale
+const TIME_BETWEEN_DECREMENT: u128 = Duration::from_micros(1_000_000 / 60).as_micros();
+
 // Control/read messages supported by the
 // chip-8 emulator
 pub enum Message {
@@ -128,8 +131,10 @@ pub struct Emulator {
     stack_pointer: usize,
     // I registry
     address_register: usize,
+    delay_timer: u8,
     stack: [usize; STACK_SIZE],
     graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
+    last_delay_decrement: Option<Instant>,
 
     // configurations
     hertz: usize,
@@ -147,8 +152,10 @@ impl Emulator {
             program_counter: START_ADDR,
             stack_pointer: 0,
             address_register: 0,
+            delay_timer: 0,
             stack: [0; STACK_SIZE],
             graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
+            last_delay_decrement: None,
             hertz,
             timeboxes,
             receiver: None,
@@ -164,8 +171,10 @@ impl Emulator {
         self.program_counter = START_ADDR;
         self.stack_pointer = 0;
         self.address_register = 0;
+        self.delay_timer = 0;
         self.stack = [0; STACK_SIZE];
         self.graphics_buffer = [0; GRAPHICS_BUFFER_SIZE];
+        self.last_delay_decrement = None;
         self.load_default_sprites().unwrap();
     }
 
@@ -230,7 +239,7 @@ impl Emulator {
         };
         self.program_counter += 2;
 
-        match self.execute(instruction) {
+        let ret = match self.execute(instruction) {
             Err(e) => {
                 debug!(
                     pc = self.program_counter,
@@ -240,7 +249,10 @@ impl Emulator {
                 Err(e)
             }
             res => res,
-        }
+        }?;
+
+        self.decrement_timers();
+        Ok(ret)
     }
 
     pub fn execute(&mut self, instruction: Instruction) -> Result<bool, Box<dyn Error>> {
@@ -325,17 +337,43 @@ impl Emulator {
                 // the offset from the start location
                 self.address_register = DEFAULT_SPRITE_START_ADDR + ((hex_digit as usize) * 5);
             }
+            Instruction::SetRegisterDelayTimer(regx) => {
+                self.registries[regx.value() as usize] = self.delay_timer;
+            },
+            Instruction::SetDelayTimer(regx) => {
+                self.delay_timer = self.registries[regx.value() as usize];
+            },
         };
         Ok(true)
+    }
+
+    /// Decrement timers at a rate of 60hz, when a timer reaches
+    /// zero this does nothing. The upper bound is 1 decrement per instruction
+    /// execution
+    pub fn decrement_timers(&mut self) {
+        if self.delay_timer > 0 {
+            if let Some(last_delay_decrement) = self.last_delay_decrement {
+                if last_delay_decrement.elapsed().as_micros() > TIME_BETWEEN_DECREMENT {
+                    self.delay_timer -= 1; 
+                    self.last_delay_decrement = Some(Instant::now());
+                }
+
+                if self.delay_timer == 0 {
+                    // Reached zero now, remove last delay decrement
+                    self.last_delay_decrement = None;
+                }
+            } else {
+                // Just started a delay timer, start keeping track of time
+                self.last_delay_decrement = Some(Instant::now());
+            }
+        }
     }
 
     pub fn copy_graphics_buffer(&self) -> [u8; GRAPHICS_BUFFER_SIZE] {
         self.graphics_buffer
     }
 
-    ///
     /// runs the emulator in a separate thread
-    ///
     pub fn run(self, receiver: Option<Receiver<Message>>) -> JoinHandle<Emulator> {
         thread::spawn(move || {
             let mut owned = self;
@@ -643,5 +681,71 @@ mod test {
             ",
         );
         assert_eq!(e.registries[0x0F_usize], 1);
+    }
+
+    #[test]
+    fn test_delay_timer_start() {
+        let input = 
+            "
+        main:
+            mov r1 3
+            mov r3 0
+            delay r1
+            mov r4 0
+            mov r4 0
+            mov r4 0
+            mov r4 0
+            ";
+        let reader = BufReader::new(input.as_bytes());
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
+        let binary = parser.parse().unwrap().binary().unwrap();
+        let mut emulator = Emulator::new(400, 100);
+        let cursor = Cursor::new(binary);
+        emulator.load(cursor).unwrap();
+
+        // 3 ticks to start delay timer
+        emulator.tick().unwrap();
+        emulator.tick().unwrap();
+        emulator.tick().unwrap();
+
+        assert!(emulator.delay_timer > 0);
+    }
+
+    #[test]
+    fn test_delay_timer_tick() {
+        let input = 
+            "
+        main:
+            mov r1 3
+            mov r3 0
+            delay r1
+            mov r4 0
+            mov r4 0
+            mov r4 0
+            mov r4 0
+            ";
+        let reader = BufReader::new(input.as_bytes());
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
+        let binary = parser.parse().unwrap().binary().unwrap();
+        let mut emulator = Emulator::new(400, 100);
+        let cursor = Cursor::new(binary);
+        emulator.load(cursor).unwrap();
+
+        // 3 ticks to start delay timer
+        emulator.tick().unwrap();
+        emulator.tick().unwrap();
+        emulator.tick().unwrap();
+
+        // Teleport 2 seconds into the future to force a timer decrement
+        // reaction - we're limited to one decrement per tick
+        let t = Instant::now().checked_sub(Duration::from_secs(2)).unwrap();
+        emulator.last_delay_decrement = Some(t);
+        emulator.tick().unwrap();
+        emulator.last_delay_decrement = Some(t);
+        emulator.tick().unwrap();
+        // Two decrements should've occured
+        assert_eq!(emulator.delay_timer, 1);
     }
 }

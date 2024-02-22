@@ -1,4 +1,4 @@
 Cargo.lock
 emulator.log
-*.bin
+/*.bin
 /target

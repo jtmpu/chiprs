@@ -310,6 +310,44 @@ impl RawInstr {
                     .map_err(|e| ParsingError::ArgumentError("draw", self.location, e))?;
                 Instruction::Draw(regx_index, regy_index, value)
             }
+            "ldd" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("ldf", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "ldd",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "ldd",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SetRegisterDelayTimer(regx_index)
+            }
+            "delay" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("ldf", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "ldf",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "ldf",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SetDelayTimer(regx_index)
+            }
             instr => {
                 return Err(ParsingError::UnknownInstruction(
                     instr.to_string(),
@@ -928,6 +966,28 @@ mod test {
         parse_and_assert(
             "draw r3 r4 2",
             [Instruction::Draw(3.into(), 4.into(), 2.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_ldd() {
+        parse_and_assert(
+            "ldd r7",
+            [Instruction::SetRegisterDelayTimer(7.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_delay() {
+        parse_and_assert(
+            "delay r0",
+            [Instruction::SetDelayTimer(0.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

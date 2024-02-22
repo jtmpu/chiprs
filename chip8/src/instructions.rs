@@ -119,6 +119,10 @@ pub enum Instruction {
     Draw(u4, u4, u4),
     /// Fx29 - Set I = location of default sprite for digit Vx
     SetMemRegisterDefaultSprit(u4),
+    /// Fx07 - Set Vx = delay timer
+    SetRegisterDelayTimer(u4),
+    /// Fx15 - Set delay timer = Vx
+    SetDelayTimer(u4),
 }
 
 impl Instruction {
@@ -159,6 +163,8 @@ impl Instruction {
             (0x80, regx, regy, 0x01) => Some(Self::Or(regx.into(), (regy >> 4).into())),
             (0xD0, regx, regy, n) => Some(Self::Draw(regx.into(), (regy >> 4).into(), n.into())),
             (0xF0, regx, 0x20, 0x09) => Some(Self::SetMemRegisterDefaultSprit(regx.into())),
+            (0xF0, regx, 0x00, 0x07) => Some(Self::SetRegisterDelayTimer(regx.into())),
+            (0xF0, regx, 0x10, 0x05) => Some(Self::SetDelayTimer(regx.into())),
             (0xF0, 0x01, 0xE0, 0x0E) => Some(Self::Exit),
             (_, _, _, _) => None,
         }
@@ -201,6 +207,16 @@ impl Instruction {
                 let small: u16 = 0x29;
                 (big << 8) | small
             }
+            Self::SetRegisterDelayTimer(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x07;
+                (big << 8) | small
+            }
+            Self::SetDelayTimer(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x15;
+                (big << 8) | small
+            }
         }
     }
 
@@ -219,6 +235,8 @@ impl Instruction {
                 format!("draw r{} r{} {}", regx.value(), regy.value(), n.value())
             }
             Self::SetMemRegisterDefaultSprit(reg) => format!("ldf {}", reg.value()),
+            Self::SetRegisterDelayTimer(reg) => format!("ldd r{}", reg.value()),
+            Self::SetDelayTimer(reg) => format!("delay r{}", reg.value()),
         }
     }
 }
@@ -272,6 +290,8 @@ mod tests {
                 Instruction::Draw(0x02.into(), 0x06.into(), 0x05.into()),
             ),
             (0xFA29, Instruction::SetMemRegisterDefaultSprit(0x0A.into())),
+            (0xF107, Instruction::SetRegisterDelayTimer(0x01.into())),
+            (0xF915, Instruction::SetDelayTimer(0x09.into())),
         ];
 
         for case in cases {
@@ -300,6 +320,8 @@ mod tests {
                 0xD45F,
             ),
             (Instruction::SetMemRegisterDefaultSprit(0x02.into()), 0xF229),
+            (Instruction::SetRegisterDelayTimer(0x07.into()), 0xF707),
+            (Instruction::SetDelayTimer(0x02.into()), 0xF215),
         ];
         for case in cases {
             let opcode = case.0.opcode();

@@ -24,10 +24,7 @@ impl App {
             handle: None,
             emulator: None,
         }
-    }
-
-    pub fn quit(&mut self) {
-        info!("quitting");
+    } pub fn quit(&mut self) { info!("quitting");
 
         self.should_quit = true;
         if let Some(sender) = &self.sender {
