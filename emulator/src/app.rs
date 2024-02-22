@@ -5,7 +5,10 @@ use std::{
 
 use tracing::info;
 
-use chip8::emulator::{self, Message};
+use chip8::{
+    emulator::{self, Key, Message},
+    instructions::u4,
+};
 
 pub struct App {
     pub should_quit: bool,
@@ -38,6 +41,15 @@ impl App {
 
         if let Some(handle) = self.handle.take() {
             handle.join().unwrap();
+        }
+    }
+
+    pub fn set_key(&mut self, key: u4, status: Key) {
+        if let Some(sender) = &self.sender {
+            match sender.send(Message::KeyEvent(key, status)) {
+                Ok(_) => {}
+                Err(_) => {}
+            }
         }
     }
 

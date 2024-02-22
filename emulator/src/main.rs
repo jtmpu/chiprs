@@ -17,7 +17,6 @@ use app::App;
 use event::{Event, EventHandler};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use tui::Tui;
-use update::update;
 
 type Err = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, Err>;
@@ -67,7 +66,8 @@ fn main() -> Result<()> {
 
         match tui.events.next()? {
             Event::Tick => {}
-            Event::Key(key_event) => update(&mut app, key_event),
+            Event::KeyPress(key_event) => update::update_keypress(&mut app, key_event),
+            Event::KeyRelease(key_event) => update::update_keyup(&mut app, key_event),
             Event::Mouse(_) => {}
             Event::Resize(_, _) => {}
         }

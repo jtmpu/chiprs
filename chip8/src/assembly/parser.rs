@@ -312,7 +312,7 @@ impl RawInstr {
             }
             "ldd" => {
                 let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("ldf", self.location, e))?;
+                    .map_err(|e| ParsingError::ArgumentError("ldd", self.location, e))?;
                 if let Some(v) = &self.arg2 {
                     return Err(ParsingError::ArgumentError(
                         "ldd",
@@ -331,22 +331,79 @@ impl RawInstr {
             }
             "delay" => {
                 let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("ldf", self.location, e))?;
+                    .map_err(|e| ParsingError::ArgumentError("delay", self.location, e))?;
                 if let Some(v) = &self.arg2 {
                     return Err(ParsingError::ArgumentError(
-                        "ldf",
+                        "delay",
                         self.location,
                         ArgumentError::UnexpectedArgument(v.clone()),
                     ));
                 }
                 if let Some(v) = &self.arg3 {
                     return Err(ParsingError::ArgumentError(
-                        "ldf",
+                        "delay",
                         self.location,
                         ArgumentError::UnexpectedArgument(v.clone()),
                     ));
                 }
                 Instruction::SetDelayTimer(regx_index)
+            }
+            "skp" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("skp", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "skp",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "skp",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SkipKeyPressed(regx_index)
+            }
+            "sknp" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sknp", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "sknp",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "sknp",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SkipKeyNotPressed(regx_index)
+            }
+            "input" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("input", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "input",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "input",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::WaitForKey(regx_index)
             }
             instr => {
                 return Err(ParsingError::UnknownInstruction(
@@ -988,6 +1045,39 @@ mod test {
         parse_and_assert(
             "delay r0",
             [Instruction::SetDelayTimer(0.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_skip_key_pressed() {
+        parse_and_assert(
+            "skp r7",
+            [Instruction::SkipKeyPressed(7.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_skip_key_not_pressed() {
+        parse_and_assert(
+            "sknp r8",
+            [Instruction::SkipKeyNotPressed(8.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_wait_for_key() {
+        parse_and_assert(
+            "input r8",
+            [Instruction::WaitForKey(8.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

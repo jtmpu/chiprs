@@ -11,7 +11,8 @@ pub enum Event {
     /// Terminal tick
     Tick,
     /// Key press
-    Key(KeyEvent),
+    KeyPress(KeyEvent),
+    KeyRelease(KeyEvent),
     /// Mouse click/scroll
     Mouse(MouseEvent),
     /// Terminal resize
@@ -47,7 +48,9 @@ impl EventHandler {
                         match event::read().expect("unable to read event") {
                             CrosstermEvent::Key(e) => {
                                 if e.kind == event::KeyEventKind::Press {
-                                    sender.send(Event::Key(e))
+                                    sender.send(Event::KeyPress(e))
+                                } else if e.kind == event::KeyEventKind::Release {
+                                    sender.send(Event::KeyRelease(e))
                                 } else {
                                     Ok(())
                                 }

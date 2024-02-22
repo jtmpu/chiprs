@@ -117,6 +117,12 @@ pub enum Instruction {
     Or(u4, u4),
     /// Dxyn - Draw n-byte sprite starting at mem I at (Vx, Vy), set VF = collision
     Draw(u4, u4, u4),
+    /// Ex9E - Skip next instruction if key with value of Vx is pressed
+    SkipKeyPressed(u4),
+    /// ExA1 - Skip next instruction if key with value of Vx is not pressed
+    SkipKeyNotPressed(u4),
+    /// Fx0A - Wait for a key press, store pressed key in Vx
+    WaitForKey(u4),
     /// Fx29 - Set I = location of default sprite for digit Vx
     SetMemRegisterDefaultSprit(u4),
     /// Fx07 - Set Vx = delay timer
@@ -162,6 +168,9 @@ impl Instruction {
             }
             (0x80, regx, regy, 0x01) => Some(Self::Or(regx.into(), (regy >> 4).into())),
             (0xD0, regx, regy, n) => Some(Self::Draw(regx.into(), (regy >> 4).into(), n.into())),
+            (0xE0, regx, 0x90, 0x0E) => Some(Self::SkipKeyPressed(regx.into())),
+            (0xE0, regx, 0xA0, 0x01) => Some(Self::SkipKeyNotPressed(regx.into())),
+            (0xF0, regx, 0x00, 0x0A) => Some(Self::WaitForKey(regx.into())),
             (0xF0, regx, 0x20, 0x09) => Some(Self::SetMemRegisterDefaultSprit(regx.into())),
             (0xF0, regx, 0x00, 0x07) => Some(Self::SetRegisterDelayTimer(regx.into())),
             (0xF0, regx, 0x10, 0x05) => Some(Self::SetDelayTimer(regx.into())),
@@ -202,6 +211,21 @@ impl Instruction {
                 let small: u16 = (regy.value() as u16) << 4 | (n.value() as u16);
                 (big << 8) | small
             }
+            Self::SkipKeyPressed(regx) => {
+                let big: u16 = 0xE0 | (regx.value() as u16);
+                let small: u16 = 0x9E;
+                (big << 8) | small
+            }
+            Self::SkipKeyNotPressed(regx) => {
+                let big: u16 = 0xE0 | (regx.value() as u16);
+                let small: u16 = 0xA1;
+                (big << 8) | small
+            }
+            Self::WaitForKey(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x0A;
+                (big << 8) | small
+            }
             Self::SetMemRegisterDefaultSprit(regx) => {
                 let big: u16 = 0xF0 | (regx.value() as u16);
                 let small: u16 = 0x29;
@@ -234,6 +258,9 @@ impl Instruction {
             Self::Draw(regx, regy, n) => {
                 format!("draw r{} r{} {}", regx.value(), regy.value(), n.value())
             }
+            Self::SkipKeyPressed(reg) => format!("skp r{}", reg.value()),
+            Self::SkipKeyNotPressed(reg) => format!("sknp r{}", reg.value()),
+            Self::WaitForKey(reg) => format!("input r{}", reg.value()),
             Self::SetMemRegisterDefaultSprit(reg) => format!("ldf {}", reg.value()),
             Self::SetRegisterDelayTimer(reg) => format!("ldd r{}", reg.value()),
             Self::SetDelayTimer(reg) => format!("delay r{}", reg.value()),
@@ -289,6 +316,9 @@ mod tests {
                 0xD265,
                 Instruction::Draw(0x02.into(), 0x06.into(), 0x05.into()),
             ),
+            (0xE29E, Instruction::SkipKeyPressed(0x02.into())),
+            (0xE5A1, Instruction::SkipKeyNotPressed(0x05.into())),
+            (0xF70A, Instruction::WaitForKey(0x07.into())),
             (0xFA29, Instruction::SetMemRegisterDefaultSprit(0x0A.into())),
             (0xF107, Instruction::SetRegisterDelayTimer(0x01.into())),
             (0xF915, Instruction::SetDelayTimer(0x09.into())),
@@ -319,6 +349,9 @@ mod tests {
                 Instruction::Draw(0x04.into(), 0x05.into(), 0x0F.into()),
                 0xD45F,
             ),
+            (Instruction::SkipKeyPressed(0x06.into()), 0xE69E),
+            (Instruction::SkipKeyNotPressed(0x05.into()), 0xE5A1),
+            (Instruction::WaitForKey(0x03.into()), 0xF30A),
             (Instruction::SetMemRegisterDefaultSprit(0x02.into()), 0xF229),
             (Instruction::SetRegisterDelayTimer(0x07.into()), 0xF707),
             (Instruction::SetDelayTimer(0x02.into()), 0xF215),

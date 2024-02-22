@@ -13,7 +13,7 @@ use std::{
 
 use tracing::{debug, error, info, span, Level};
 
-use crate::instructions::Instruction;
+use crate::instructions::{u4, Instruction};
 
 #[derive(Debug)]
 pub enum Chip8Error {
@@ -44,6 +44,7 @@ pub const STACK_SIZE: usize = 32;
 pub const DISPLAY_WIDTH: usize = 64;
 pub const DISPLAY_HEIGHT: usize = 32;
 pub const GRAPHICS_BUFFER_SIZE: usize = (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8;
+pub const KEY_COUNT: usize = 16;
 
 pub const DEFAULT_SPRITE_START_ADDR: usize = 0x00;
 pub const DEFAULT_SPRITES: [[u8; 5]; 16] = [
@@ -89,6 +90,7 @@ const TIME_BETWEEN_DECREMENT: u128 = Duration::from_micros(1_000_000 / 60).as_mi
 pub enum Message {
     Pause,
     SendGraphics(Sender<[u8; GRAPHICS_BUFFER_SIZE]>),
+    KeyEvent(u4, Key),
 }
 
 pub struct Builder {
@@ -129,6 +131,12 @@ impl Builder {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
+pub enum Key {
+    Up,
+    Pressed,
+}
+
 pub struct Emulator {
     // hardware
     memory: [u8; MEMSIZE],
@@ -141,6 +149,8 @@ pub struct Emulator {
     stack: [usize; STACK_SIZE],
     graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
     last_delay_decrement: Option<Instant>,
+    key_status: [Key; KEY_COUNT],
+    wait_for_key: Option<u8>,
 
     // configurations
     hertz: usize,
@@ -162,6 +172,8 @@ impl Emulator {
             stack: [0; STACK_SIZE],
             graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
             last_delay_decrement: None,
+            key_status: [Key::Up; KEY_COUNT],
+            wait_for_key: None,
             hertz,
             timeboxes,
             receiver: None,
@@ -181,6 +193,8 @@ impl Emulator {
         self.stack = [0; STACK_SIZE];
         self.graphics_buffer = [0; GRAPHICS_BUFFER_SIZE];
         self.last_delay_decrement = None;
+        self.key_status = [Key::Up; KEY_COUNT];
+        self.wait_for_key = None;
         self.load_default_sprites().unwrap();
     }
 
@@ -232,6 +246,19 @@ impl Emulator {
     pub fn tick(&mut self) -> Result<bool, Box<dyn Error>> {
         let span = span!(Level::INFO, "emulator.tick");
         let _guard = span.enter();
+
+        if let Some(regx) = self.wait_for_key {
+            for (i, key) in self.key_status.iter().enumerate() {
+                if *key == Key::Pressed {
+                    self.registries[regx as usize] = i as u8;
+                    self.wait_for_key = None;
+                    break;
+                }
+            }
+            self.decrement_timers();
+            return Ok(true);
+        }
+
         let instruction = match self.instruction() {
             Ok(i) => i,
             Err(e) => {
@@ -334,6 +361,19 @@ impl Emulator {
                     self.registries[0x0F_usize] = 1;
                 }
             }
+            Instruction::SkipKeyPressed(regx) => {
+                if self.key_status[regx.value() as usize] == Key::Pressed {
+                    self.program_counter += 2;
+                }
+            }
+            Instruction::SkipKeyNotPressed(regx) => {
+                if self.key_status[regx.value() as usize] == Key::Up {
+                    self.program_counter += 2;
+                }
+            }
+            Instruction::WaitForKey(regx) => {
+                self.wait_for_key = Some(regx.value());
+            }
             Instruction::SetMemRegisterDefaultSprit(regx) => {
                 let hex_digit = self.registries[regx.value() as usize];
                 if hex_digit > 0x0F {
@@ -377,6 +417,18 @@ impl Emulator {
 
     pub fn copy_graphics_buffer(&self) -> [u8; GRAPHICS_BUFFER_SIZE] {
         self.graphics_buffer
+    }
+
+    pub fn set_key(&mut self, key: u4, status: Key) {
+        self.key_status[key.value() as usize] = status;
+    }
+
+    pub fn key_pressed(&mut self, key: u4) {
+        self.set_key(key, Key::Pressed);
+    }
+
+    pub fn key_up(&mut self, key: u4) {
+        self.set_key(key, Key::Up);
     }
 
     /// runs the emulator in a separate thread
@@ -457,7 +509,7 @@ impl Emulator {
         info!("pausing chip-8 machine");
     }
 
-    fn process_message(&self, message: Message) -> bool {
+    fn process_message(&mut self, message: Message) -> bool {
         match message {
             Message::Pause => {
                 info!("received pause");
@@ -473,6 +525,7 @@ impl Emulator {
                     }
                 };
             }
+            Message::KeyEvent(key, status) => self.set_key(key, status),
         };
         false
     }
@@ -751,5 +804,67 @@ mod test {
         emulator.tick().unwrap();
         // Two decrements should've occured
         assert_eq!(emulator.delay_timer, 1);
+    }
+
+    #[test]
+    fn test_skip_key_press() {
+        let input = "
+        main:
+            mov r1 0
+            mov r2 2
+            mov r3 0
+            skp r2
+            add r1 2
+            skp r3
+            add r1 4
+            ";
+        let reader = BufReader::new(input.as_bytes());
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
+        let binary = parser.parse().unwrap().binary().unwrap();
+        let mut emulator = Emulator::new(400, 100);
+        let cursor = Cursor::new(binary);
+        emulator.load(cursor).unwrap();
+        emulator.key_pressed(2.into());
+        loop {
+            match emulator.tick() {
+                Ok(false) => break,
+                Err(_) => break,
+                _ => {}
+            }
+        }
+
+        assert_eq!(emulator.registries[1], 4);
+    }
+
+    #[test]
+    fn test_skip_key_not_press() {
+        let input = "
+        main:
+            mov r1 0
+            mov r2 2
+            mov r3 0
+            sknp r2
+            add r1 2
+            sknp r3
+            add r1 4
+            ";
+        let reader = BufReader::new(input.as_bytes());
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
+        let binary = parser.parse().unwrap().binary().unwrap();
+        let mut emulator = Emulator::new(400, 100);
+        let cursor = Cursor::new(binary);
+        emulator.load(cursor).unwrap();
+        emulator.key_pressed(2.into());
+        loop {
+            match emulator.tick() {
+                Ok(false) => break,
+                Err(_) => break,
+                _ => {}
+            }
+        }
+
+        assert_eq!(emulator.registries[1], 2);
     }
 }
