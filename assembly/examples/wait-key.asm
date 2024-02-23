@@ -1,29 +1,31 @@
-    mov r5 99
+    ldb r1 0
+    ldb r2 0
+    ldb r3 0
+    draw r2 r3 5
+    ldr r5 r1 ; save old char to remove
 main:
-    mov r9 30
-    call wait
+    ldb r2 60
     delay r2
+    call wait
     input r1
     call clear
     ldf r1
-    mov r2 0
-    mov r3 0
+    ldb r2 0
+    ldb r3 0
     draw r2 r3 5
-    mov r4 r1 ; save old char addr
+    ldr r5 r1 ; save old char addr
     jmp main
 
 clear:
-    sne r4 99
-    ret ; no previous char
     ldf r4
-    mov r2 0
-    mov r3 0
+    ldb r2 0
+    ldb r3 0
     draw r2 r3 5
     ret
 
 wait:
     ldd r9
     sne r9 0
-    jmp wait
     ret
+    jmp wait
 

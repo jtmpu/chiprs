@@ -254,6 +254,20 @@ impl RawInstr {
                 }
                 Instruction::SetRegisterByte(reg_index, value)
             }
+            "ldr" => {
+                let regx = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("ldb", self.location, e))?;
+                let regy = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("ldb", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "ldb",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SetRegisterRegister(regx, regy)
+            }
             "add" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("add", self.location, e))?;
@@ -927,6 +941,20 @@ mod test {
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_ldr() {
+        parse_and_assert(
+            "ldr r1 r7",
+            [Instruction::SetRegisterRegister(
+                u4::little(0x01),
+                0x07.into(),
+            )]
+            .iter()
+            .map(|e| ParsedInstruction::new(*e))
+            .collect(),
         );
     }
 

@@ -111,6 +111,8 @@ pub enum Instruction {
     SkipNotEqual(u4, u8),
     /// 6xkk - Set Vx = kk
     SetRegisterByte(u4, u8),
+    /// 8xy0 - Set Vx = Vy
+    SetRegisterRegister(u4, u4),
     /// 7xkk - Set Vx = Vx + kk
     Add(u4, u8),
     /// 8xy1 - Set Vx = Vx OR Vy
@@ -171,6 +173,9 @@ impl Instruction {
             (0xE0, regx, 0x90, 0x0E) => Some(Self::SkipKeyPressed(regx.into())),
             (0xE0, regx, 0xA0, 0x01) => Some(Self::SkipKeyNotPressed(regx.into())),
             (0xF0, regx, 0x00, 0x0A) => Some(Self::WaitForKey(regx.into())),
+            (0x80, regx, regy, 0x00) => {
+                Some(Self::SetRegisterRegister(regx.into(), (regy >> 4).into()))
+            }
             (0xF0, regx, 0x20, 0x09) => Some(Self::SetMemRegisterDefaultSprit(regx.into())),
             (0xF0, regx, 0x00, 0x07) => Some(Self::SetRegisterDelayTimer(regx.into())),
             (0xF0, regx, 0x10, 0x05) => Some(Self::SetDelayTimer(regx.into())),
@@ -226,6 +231,11 @@ impl Instruction {
                 let small: u16 = 0x0A;
                 (big << 8) | small
             }
+            Self::SetRegisterRegister(regx, regy) => {
+                let big: u16 = 0x80 | (regx.value() as u16);
+                let small: u16 = ((regy.value() as u16) << 4) | (0x00 as u16);
+                (big << 8) | small
+            }
             Self::SetMemRegisterDefaultSprit(regx) => {
                 let big: u16 = 0xF0 | (regx.value() as u16);
                 let small: u16 = 0x29;
@@ -253,6 +263,9 @@ impl Instruction {
             Self::Call(addr) => format!("call {}", addr.value()),
             Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),
             Self::SetRegisterByte(reg, value) => format!("ldb r{} {}", reg.value(), value),
+            Self::SetRegisterRegister(regx, regy) => {
+                format!("ldr r{} r{}", regx.value(), regy.value())
+            }
             Self::Add(reg, value) => format!("add r{} {}", reg.value(), value),
             Self::Or(regx, regy) => format!("or r{} r{}", regx.value(), regy.value()),
             Self::Draw(regx, regy, n) => {
@@ -309,6 +322,10 @@ mod tests {
             (0x1BFD, Instruction::Jump(u12::from_u16(0xBFD))),
             (0x2ABC, Instruction::Call(u12::from_u16(0xABC))),
             (0x61FF, Instruction::SetRegisterByte(u4::little(0x01), 0xFF)),
+            (
+                0x8130,
+                Instruction::SetRegisterRegister(0x01.into(), 0x03.into()),
+            ),
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
             (0x42EC, Instruction::SkipNotEqual(u4::little(0x02), 0xEC)),
             (0x8121, Instruction::Or(0x01.into(), 0x02.into())),
@@ -342,6 +359,10 @@ mod tests {
             (Instruction::Jump(0x123.into()), 0x1123),
             (Instruction::Call(0x321.into()), 0x2321),
             (Instruction::SetRegisterByte(0x02.into(), 0x42), 0x6242),
+            (
+                Instruction::SetRegisterRegister(0x03.into(), 0x04.into()),
+                0x8340,
+            ),
             (Instruction::Add(0x04.into(), 0x2), 0x7402),
             (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),
             (Instruction::Or(0x02.into(), 0x03.into()), 0x8231),

@@ -325,6 +325,9 @@ impl Emulator {
             Instruction::SetRegisterByte(register, value) => {
                 self.registries[register.value() as usize] = value;
             }
+            Instruction::SetRegisterRegister(regx, regy) => {
+                self.registries[regx.value() as usize] = self.registries[regy.value() as usize];
+            }
             Instruction::Add(register, value) => {
                 self.registries[register.value() as usize] += value;
             }

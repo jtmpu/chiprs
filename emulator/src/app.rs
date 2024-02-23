@@ -3,7 +3,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use tracing::info;
+use tracing::{debug, info};
 
 use chip8::{
     emulator::{self, Key, Message},
@@ -56,7 +56,7 @@ impl App {
     pub fn request_data(&mut self) {
         if let Some(sender) = &self.sender {
             let (gs, gr) = channel();
-            info!("getting graphics buffer");
+            debug!("getting graphics buffer");
             if sender.send(Message::SendGraphics(gs)).is_ok() {
                 if let Ok(buffer) = gr.recv() {
                     self.graphics_buffer = buffer;
