@@ -90,12 +90,12 @@ mod test {
     fn test_addr_resolve() {
         let instructions = vec![
             ParsedInstruction {
-                instruction: Instruction::SetRegisterBytte(1.into(), 0),
+                instruction: Instruction::SetRegisterByte(1.into(), 0),
                 label: Some("main".to_string()),
                 source: None,
             },
             ParsedInstruction {
-                instruction: Instruction::SetRegisterBytte(2.into(), 4),
+                instruction: Instruction::SetRegisterByte(2.into(), 4),
                 label: None,
                 source: None,
             },
@@ -130,7 +130,7 @@ mod test {
                 source: None,
             },
             ParsedInstruction {
-                instruction: Instruction::SetRegisterBytte(4.into(), 0),
+                instruction: Instruction::SetRegisterByte(4.into(), 0),
                 label: Some("exit".to_string()),
                 source: None,
             },

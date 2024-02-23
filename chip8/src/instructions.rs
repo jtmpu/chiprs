@@ -110,7 +110,7 @@ pub enum Instruction {
     /// 4xkk - Skip next instruction if Vx != kk
     SkipNotEqual(u4, u8),
     /// 6xkk - Set Vx = kk
-    SetRegisterBytte(u4, u8),
+    SetRegisterByte(u4, u8),
     /// 7xkk - Set Vx = Vx + kk
     Add(u4, u8),
     /// 8xy1 - Set Vx = Vx OR Vy
@@ -159,7 +159,7 @@ impl Instruction {
             (0x60, _, _, _) => {
                 let register = u4::little(upper);
                 let value = lower;
-                Some(Self::SetRegisterBytte(register, value))
+                Some(Self::SetRegisterByte(register, value))
             }
             (0x70, _, _, _) => {
                 let register = u4::little(upper);
@@ -191,7 +191,7 @@ impl Instruction {
                 let small: u16 = *value as u16;
                 (big << 8) | small
             }
-            Self::SetRegisterBytte(reg, value) => {
+            Self::SetRegisterByte(reg, value) => {
                 let big: u16 = 0x60 | (reg.value() as u16);
                 let small: u16 = *value as u16;
                 (big << 8) | small
@@ -252,7 +252,7 @@ impl Instruction {
             Self::Jump(addr) => format!("jmp {}", addr.value()),
             Self::Call(addr) => format!("call {}", addr.value()),
             Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),
-            Self::SetRegisterBytte(reg, value) => format!("ldb r{} {}", reg.value(), value),
+            Self::SetRegisterByte(reg, value) => format!("ldb r{} {}", reg.value(), value),
             Self::Add(reg, value) => format!("add r{} {}", reg.value(), value),
             Self::Or(regx, regy) => format!("or r{} r{}", regx.value(), regy.value()),
             Self::Draw(regx, regy, n) => {
@@ -308,7 +308,7 @@ mod tests {
             (0x00EE, Instruction::Return),
             (0x1BFD, Instruction::Jump(u12::from_u16(0xBFD))),
             (0x2ABC, Instruction::Call(u12::from_u16(0xABC))),
-            (0x61FF, Instruction::SetRegisterBytte(u4::little(0x01), 0xFF)),
+            (0x61FF, Instruction::SetRegisterByte(u4::little(0x01), 0xFF)),
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
             (0x42EC, Instruction::SkipNotEqual(u4::little(0x02), 0xEC)),
             (0x8121, Instruction::Or(0x01.into(), 0x02.into())),
@@ -341,7 +341,7 @@ mod tests {
             (Instruction::Return, 0x00EE),
             (Instruction::Jump(0x123.into()), 0x1123),
             (Instruction::Call(0x321.into()), 0x2321),
-            (Instruction::SetRegisterBytte(0x02.into(), 0x42), 0x6242),
+            (Instruction::SetRegisterByte(0x02.into(), 0x42), 0x6242),
             (Instruction::Add(0x04.into(), 0x2), 0x7402),
             (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),
             (Instruction::Or(0x02.into(), 0x03.into()), 0x8231),
