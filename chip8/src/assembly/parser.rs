@@ -252,7 +252,7 @@ impl RawInstr {
                         ArgumentError::UnexpectedArgument(v.clone()),
                     ));
                 }
-                Instruction::LoadByte(reg_index, value)
+                Instruction::SetRegisterBytte(reg_index, value)
             }
             "add" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
@@ -923,7 +923,7 @@ mod test {
     fn parse_ldb() {
         parse_and_assert(
             "ldb r1 42",
-            [Instruction::LoadByte(u4::little(0x01), 42)]
+            [Instruction::SetRegisterBytte(u4::little(0x01), 42)]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),
@@ -1108,7 +1108,7 @@ mod test {
     #[test]
     fn parse_integration() {
         let expected: Vec<ParsedInstruction> = vec![
-            ParsedInstruction::new(Instruction::LoadByte(u4::little(1), 0)),
+            ParsedInstruction::new(Instruction::SetRegisterBytte(u4::little(1), 0)),
             ParsedInstruction::new(Instruction::Add(u4::little(1), 1)),
             ParsedInstruction::new(Instruction::Clear),
             ParsedInstruction::new(Instruction::SkipNotEqual(u4::little(1), 4)),

@@ -322,7 +322,7 @@ impl Emulator {
                     self.program_counter += 2;
                 }
             }
-            Instruction::LoadByte(register, value) => {
+            Instruction::SetRegisterBytte(register, value) => {
                 self.registries[register.value() as usize] = value;
             }
             Instruction::Add(register, value) => {
