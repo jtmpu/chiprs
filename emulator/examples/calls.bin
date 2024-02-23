@@ -1,0 +1,1 @@
+cargo run --bin assembly -- asm -i calls.asm

@@ -240,19 +240,19 @@ impl RawInstr {
                 }
                 Instruction::SkipNotEqual(reg_index, value)
             }
-            "mov" => {
+            "ldb" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("mov", self.location, e))?;
+                    .map_err(|e| ParsingError::ArgumentError("ldb", self.location, e))?;
                 let value = RawInstr::parse_as_value(self.arg2.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("mov", self.location, e))?;
+                    .map_err(|e| ParsingError::ArgumentError("ldb", self.location, e))?;
                 if let Some(v) = &self.arg3 {
                     return Err(ParsingError::ArgumentError(
-                        "mov",
+                        "ldb",
                         self.location,
                         ArgumentError::UnexpectedArgument(v.clone()),
                     ));
                 }
-                Instruction::Move(reg_index, value)
+                Instruction::LoadByte(reg_index, value)
             }
             "add" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
@@ -920,10 +920,10 @@ mod test {
     }
 
     #[test]
-    fn parse_mov() {
+    fn parse_ldb() {
         parse_and_assert(
-            "mov r1 42",
-            [Instruction::Move(u4::little(0x01), 42)]
+            "ldb r1 42",
+            [Instruction::LoadByte(u4::little(0x01), 42)]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),
@@ -1108,7 +1108,7 @@ mod test {
     #[test]
     fn parse_integration() {
         let expected: Vec<ParsedInstruction> = vec![
-            ParsedInstruction::new(Instruction::Move(u4::little(1), 0)),
+            ParsedInstruction::new(Instruction::LoadByte(u4::little(1), 0)),
             ParsedInstruction::new(Instruction::Add(u4::little(1), 1)),
             ParsedInstruction::new(Instruction::Clear),
             ParsedInstruction::new(Instruction::SkipNotEqual(u4::little(1), 4)),
@@ -1116,7 +1116,7 @@ mod test {
         ];
         let input = "; this asm contains a little bit of everything
 main:
-    mov r1 0
+    ldb r1 0
     add r1 1
     clear
     sne r1 4 ; abort

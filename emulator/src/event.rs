@@ -5,14 +5,15 @@ use std::{
     time::{Duration, Instant},
 };
 
+use tracing::info;
+
 /// Terminal events
 #[derive(Clone, Copy, Debug)]
 pub enum Event {
     /// Terminal tick
     Tick,
     /// Key press
-    KeyPress(KeyEvent),
-    KeyRelease(KeyEvent),
+    KeyEvent(KeyEvent),
     /// Mouse click/scroll
     Mouse(MouseEvent),
     /// Terminal resize
@@ -47,10 +48,9 @@ impl EventHandler {
                     if event::poll(timeout).expect("unable to poll for events") {
                         match event::read().expect("unable to read event") {
                             CrosstermEvent::Key(e) => {
+                                info!(?e, "raw event");
                                 if e.kind == event::KeyEventKind::Press {
-                                    sender.send(Event::KeyPress(e))
-                                } else if e.kind == event::KeyEventKind::Release {
-                                    sender.send(Event::KeyRelease(e))
+                                    sender.send(Event::KeyEvent(e))
                                 } else {
                                     Ok(())
                                 }

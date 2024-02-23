@@ -131,7 +131,7 @@ impl Builder {
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Key {
     Up,
     Pressed,
@@ -322,7 +322,7 @@ impl Emulator {
                     self.program_counter += 2;
                 }
             }
-            Instruction::Move(register, value) => {
+            Instruction::LoadByte(register, value) => {
                 self.registries[register.value() as usize] = value;
             }
             Instruction::Add(register, value) => {
@@ -420,6 +420,7 @@ impl Emulator {
     }
 
     pub fn set_key(&mut self, key: u4, status: Key) {
+        info!(?key, ?status, "key event");
         self.key_status[key.value() as usize] = status;
     }
 
@@ -565,8 +566,8 @@ mod test {
     fn test_add() {
         let e = create_execute(
             "
-            mov r2 1
-            mov r1 0
+            ldb r2 1
+            ldb r1 0
             add r1 2
             add r1 10
             add r2 4
@@ -580,7 +581,7 @@ mod test {
     fn test_branch_jmp_sne() {
         let e = create_execute(
             "
-            mov r1 0
+            ldb r1 0
             add r2 0
         loop:
             sne r1 4
@@ -600,7 +601,7 @@ mod test {
         let e = create_execute(
             "
         main:
-            mov r1 0
+            ldb r1 0
             add r1 2
             call func1
             call func2
@@ -625,7 +626,7 @@ mod test {
         let e = create_execute(
             "
         main:
-            mov r1 1
+            ldb r1 1
             ldf r1
             ",
         );
@@ -644,10 +645,10 @@ mod test {
         let e = create_execute(
             "
         main:
-            mov r1 1
+            ldb r1 1
             ldf r1
-            mov r1 0
-            mov r2 0
+            ldb r1 0
+            ldb r2 0
             draw r1 r2 5
             ",
         );
@@ -675,10 +676,10 @@ mod test {
         let e = create_execute(
             "
         main:
-            mov r1 1
+            ldb r1 1
             ldf r1
-            mov r1 60
-            mov r2 0
+            ldb r1 60
+            ldb r2 0
             draw r1 r2 5
             ",
         );
@@ -711,10 +712,10 @@ mod test {
         let e = create_execute(
             "
         main:
-            mov r1 1
+            ldb r1 1
             ldf r1
-            mov r1 0
-            mov r2 0
+            ldb r1 0
+            ldb r2 0
             draw r1 r2 5
             ",
         );
@@ -727,15 +728,15 @@ mod test {
         let e = create_execute(
             "
         main:
-            mov r1 1
+            ldb r1 1
             ldf r1
-            mov r1 0
-            mov r2 0
+            ldb r1 0
+            ldb r2 0
             draw r1 r2 5
-            mov r1 1
+            ldb r1 1
             ldf r1
-            mov r1 0
-            mov r2 0
+            ldb r1 0
+            ldb r2 0
             draw r1 r2 5
             ",
         );
@@ -746,13 +747,13 @@ mod test {
     fn test_delay_timer_start() {
         let input = "
         main:
-            mov r1 3
-            mov r3 0
+            ldb r1 3
+            ldb r3 0
             delay r1
-            mov r4 0
-            mov r4 0
-            mov r4 0
-            mov r4 0
+            ldb r4 0
+            ldb r4 0
+            ldb r4 0
+            ldb r4 0
             ";
         let reader = BufReader::new(input.as_bytes());
         let lexer = StreamLexer::new(reader);
@@ -774,13 +775,13 @@ mod test {
     fn test_delay_timer_tick() {
         let input = "
         main:
-            mov r1 3
-            mov r3 0
+            ldb r1 3
+            ldb r3 0
             delay r1
-            mov r4 0
-            mov r4 0
-            mov r4 0
-            mov r4 0
+            ldb r4 0
+            ldb r4 0
+            ldb r4 0
+            ldb r4 0
             ";
         let reader = BufReader::new(input.as_bytes());
         let lexer = StreamLexer::new(reader);
@@ -810,9 +811,9 @@ mod test {
     fn test_skip_key_press() {
         let input = "
         main:
-            mov r1 0
-            mov r2 2
-            mov r3 0
+            ldb r1 0
+            ldb r2 2
+            ldb r3 0
             skp r2
             add r1 2
             skp r3
@@ -841,9 +842,9 @@ mod test {
     fn test_skip_key_not_press() {
         let input = "
         main:
-            mov r1 0
-            mov r2 2
-            mov r3 0
+            ldb r1 0
+            ldb r2 2
+            ldb r3 0
             sknp r2
             add r1 2
             sknp r3

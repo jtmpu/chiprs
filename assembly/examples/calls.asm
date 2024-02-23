@@ -1,5 +1,5 @@
 main:
-    mov r1 0
+    ldb r1 0
     add r1 2
     call func1
     call func2

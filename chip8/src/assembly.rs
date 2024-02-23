@@ -90,12 +90,12 @@ mod test {
     fn test_addr_resolve() {
         let instructions = vec![
             ParsedInstruction {
-                instruction: Instruction::Move(1.into(), 0),
+                instruction: Instruction::LoadByte(1.into(), 0),
                 label: Some("main".to_string()),
                 source: None,
             },
             ParsedInstruction {
-                instruction: Instruction::Move(2.into(), 4),
+                instruction: Instruction::LoadByte(2.into(), 4),
                 label: None,
                 source: None,
             },
@@ -130,7 +130,7 @@ mod test {
                 source: None,
             },
             ParsedInstruction {
-                instruction: Instruction::Move(4.into(), 0),
+                instruction: Instruction::LoadByte(4.into(), 0),
                 label: Some("exit".to_string()),
                 source: None,
             },
