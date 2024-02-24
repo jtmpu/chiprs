@@ -18,11 +18,15 @@ Bigger stuff
 
 - [x] Support key press from ratatui <-> emulator
 - [x] Find a simple way to separate and control ticks for emulator and rendering
-- [ ] Diagnostics UI in ratatui
+- [x] Diagnostics UI in ratatui
   - Pause, step, (maybe step back?)
-  - Show registries, stacks, allow read/write of memory 
+  - Show registries, stacks
+  [ ] Better diagnostics
+  - allow read/write of memory 
+  - prettier views
 - [ ] Diagnostics CLI
 - [ ] Multi-file support in assembly
+- [ ] Sound playback in TUI client
 
 ## Examples
 
