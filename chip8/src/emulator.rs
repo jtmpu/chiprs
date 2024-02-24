@@ -311,7 +311,7 @@ impl Emulator {
                 return Ok(false);
             }
             Instruction::Clear => {
-                // Currently noop
+                self.graphics_buffer = [0; GRAPHICS_BUFFER_SIZE];
             }
             Instruction::Return => {
                 if self.stack_pointer == 0 {
