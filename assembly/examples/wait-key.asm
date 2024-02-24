@@ -17,7 +17,7 @@ main:
     jmp main
 
 clear:
-    ldf r4
+    ldf r5
     ldb r2 0
     ldb r3 0
     draw r2 r3 5

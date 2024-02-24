@@ -8,7 +8,6 @@ use crate::{
     widgets::display::Display,
 };
 
-
 pub struct RendererBuilder {
     color_main_fg: Color,
     color_main_bg: Color,

@@ -62,7 +62,7 @@ impl KeyHandler {
             if let Some(last) = value.1.take() {
                 if last.elapsed() > self.delay {
                     info!(key=?*key, value=value.0.value(), "released key");
-                    if let Err(_) = app.set_key(value.0, KeyStatus::Pressed) {
+                    if let Err(_) = app.set_key(value.0, KeyStatus::Up) {
                         value.1 = Some(last)
                     }
                 } else {

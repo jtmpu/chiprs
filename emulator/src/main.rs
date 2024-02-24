@@ -34,6 +34,9 @@ struct Arguments {
     timeboxes: usize,
     #[arg(long, default_value_t = 100)]
     key_press_delay: u64,
+
+    #[arg(short, long)]
+    debug: bool,
 }
 
 fn main() -> Result<()> {
@@ -44,7 +47,11 @@ fn main() -> Result<()> {
 
     // Create a subscriber with the file appender
     let subscriber = fmt::Subscriber::builder()
-        .with_max_level(Level::DEBUG)
+        .with_max_level(if args.debug {
+            Level::DEBUG
+        } else {
+            Level::INFO
+        })
         .with_writer(file_appender)
         .finish();
 
