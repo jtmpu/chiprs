@@ -3,91 +3,169 @@ use std::{
     thread::JoinHandle,
 };
 
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use chip8::{
-    emulator::{self, KeyStatus, Message},
+    emulator::{self, Emulator, KeyStatus, Message, GRAPHICS_BUFFER_SIZE},
     instructions::u4,
 };
 
 pub struct App {
-    pub should_quit: bool,
-    pub graphics_buffer: [u8; emulator::GRAPHICS_BUFFER_SIZE],
-    sender: Option<Sender<emulator::Message>>,
-    handle: Option<JoinHandle<emulator::Emulator>>,
-    emulator: Option<emulator::Emulator>,
+    fps: usize,
+    hertz: usize,
+    timeboxes: usize,
+    file: Option<String>,
+    should_quit: bool,
+    view_state: ViewState,
+    emulator_state: EmulatorState,
+    graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(fps: usize, hertz: usize, timeboxes: usize) -> Self {
         Self {
             should_quit: false,
-            graphics_buffer: [0; emulator::GRAPHICS_BUFFER_SIZE],
-            sender: None,
-            handle: None,
-            emulator: None,
+            fps,
+            hertz,
+            timeboxes,
+            file: None,
+            view_state: ViewState::GameView,
+            emulator_state: EmulatorState::Unloaded,
+            graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
         }
     }
+
+    pub fn fps(&self) -> usize {
+        self.fps
+    }
+
     pub fn quit(&mut self) {
         info!("quitting");
-
         self.should_quit = true;
-        if let Some(sender) = &self.sender {
-            match sender.send(Message::Pause) {
-                Ok(_) => {}
-                Err(_) => {}
-            }
-        }
+    }
 
-        if let Some(handle) = self.handle.take() {
-            handle.join().unwrap();
+    pub fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    pub fn toggle_run(&mut self) {
+        let emulator_state = std::mem::replace(&mut self.emulator_state, EmulatorState::Unloaded);
+        match emulator_state {
+            EmulatorState::Unloaded => {
+                self.emulator_state = emulator_state;
+            }
+            EmulatorState::Running(_) => {
+                self.emulator_state = emulator_state;
+            }
+            EmulatorState::Paused(e) => {
+                let (sender, receiver) = channel::<Message>();
+                let handle = e.emulator.run(Some(receiver));
+                let state = RunningEmulator { handle, sender };
+                self.emulator_state = EmulatorState::Running(state);
+            }
         }
     }
 
-    pub fn set_key(&mut self, key: u4, status: KeyStatus) {
-        if let Some(sender) = &self.sender {
-            match sender.send(Message::KeyEvent(key, status)) {
-                Ok(_) => {}
-                Err(_) => {}
-            }
-        }
+    pub fn view_state(&self) -> ViewState {
+        self.view_state
     }
 
-    pub fn request_data(&mut self) {
-        if let Some(sender) = &self.sender {
-            let (gs, gr) = channel();
-            debug!("getting graphics buffer");
-            if sender.send(Message::SendGraphics(gs)).is_ok() {
-                if let Ok(buffer) = gr.recv() {
-                    self.graphics_buffer = buffer;
-                    return;
+    pub fn emulator(&mut self) -> &mut EmulatorState {
+        &mut self.emulator_state
+    }
+
+    pub fn graphics_buffer(&self) -> &[u8; GRAPHICS_BUFFER_SIZE] {
+        &self.graphics_buffer
+    }
+
+    pub fn file(&self) -> Option<&String> {
+        self.file.as_ref()
+    }
+
+    pub fn hertz(&self) -> usize {
+        self.hertz
+    }
+
+    pub fn timeboxes(&self) -> usize {
+        self.timeboxes
+    }
+
+    pub fn tick(&mut self) {
+        match &mut self.emulator_state {
+            EmulatorState::Unloaded => {}
+            EmulatorState::Paused(state) => {
+                self.graphics_buffer = state.emulator.copy_graphics_buffer();
+            }
+            EmulatorState::Running(state) => {
+                let (gs, gr) = channel();
+                if state.sender.send(Message::SendGraphics(gs)).is_ok() {
+                    if let Ok(buffer) = gr.recv() {
+                        self.graphics_buffer = buffer;
+                        return;
+                    }
                 }
-            }
 
-            // An error occurred == channel disconnect
-            // the emulator has paused.
-            if let Some(handle) = self.handle.take() {
-                let emulator = handle.join().unwrap();
-                self.graphics_buffer = emulator.copy_graphics_buffer();
-                self.emulator = Some(emulator);
+                // An error occurred == channel disconnect
+                // the emulator has paused.
+                self.toggle_run();
             }
         }
     }
 
-    pub fn load_and_run(
-        &mut self,
-        file: &str,
-        hertz: usize,
-        timeboxes: usize,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn emulator_from_file(&mut self, file: &str) -> Result<(), Box<dyn std::error::Error>> {
         let emulator = emulator::Builder::new()
-            .with_hertz(hertz)
-            .with_timeboxes(timeboxes)
-            .load_program(file)
-            .unwrap();
-        let (sender, receiver) = channel();
-        self.sender = Some(sender);
-        self.handle = Some(emulator.run(Some(receiver)));
+            .with_hertz(self.hertz)
+            .with_timeboxes(self.timeboxes)
+            .load_program(file)?;
+        self.file = Some(file.to_string());
+        self.emulator_state = EmulatorState::Paused(PausedEmulator { emulator });
         Ok(())
     }
+
+    pub fn set_key(
+        &mut self,
+        key: u4,
+        status: KeyStatus,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match &self.emulator_state {
+            EmulatorState::Running(state) => {
+                match state.sender.send(Message::KeyEvent(key, status)) {
+                    Ok(_) => {}
+                    Err(error) => {
+                        error!(%error, "failed to send key event to emulator");
+                        return Err(error.into());
+                    }
+                };
+            }
+            _ => {
+                info!(
+                    key = key.value(),
+                    ?status,
+                    "app received keypress, not forwarding to emulator"
+                )
+            }
+        };
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ViewState {
+    GameView,
+    DebugView,
+}
+
+pub enum EmulatorState {
+    Unloaded,
+    Paused(PausedEmulator),
+    Running(RunningEmulator),
+}
+
+pub struct PausedEmulator {
+    pub emulator: Emulator,
+}
+
+pub struct RunningEmulator {
+    pub handle: JoinHandle<Emulator>,
+    pub sender: Sender<Message>,
 }

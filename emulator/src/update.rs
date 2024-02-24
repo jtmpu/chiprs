@@ -7,7 +7,7 @@ use std::{
 use chip8::{emulator::KeyStatus, instructions::u4};
 use tracing::info;
 
-use crate::app::App;
+use crate::app::{App, EmulatorState};
 
 // Used to deal with artifical key releases
 pub struct KeyHandler {
@@ -32,11 +32,14 @@ impl KeyHandler {
         info!(code = ?key_event.code, "received key press event");
         match key_event.code {
             KeyCode::Esc | KeyCode::Char('q') => app.quit(),
+            KeyCode::Char('p') => app.toggle_run(),
             KeyCode::Char(c) => {
                 if self.keys.contains_key(&c) {
                     let value = self.keys[&c].0;
-                    app.set_key(value, KeyStatus::Pressed);
-                    self.keys.insert(c, (value, Some(Instant::now())));
+                    info!(key=?c, value=value.value(), "registered bound key press");
+                    if let Ok(_) = app.set_key(value, KeyStatus::Pressed) {
+                        self.keys.insert(c, (value, Some(Instant::now())));
+                    }
                 }
             }
             _ => {}
@@ -46,11 +49,16 @@ impl KeyHandler {
     /// We cannot detect key release events in the terminal, so this
     /// tick function artificially mimics releasing the key every `delay`
     pub fn tick(&mut self, app: &mut App) {
+        if !matches!(app.emulator(), EmulatorState::Running(_)) {
+            return;
+        }
         for (key, value) in self.keys.iter_mut() {
             if let Some(last) = value.1.take() {
                 if last.elapsed() > self.delay {
-                    info!(%key, value = ?value.0, "releasing key");
-                    app.set_key(value.0, KeyStatus::Up);
+                    info!(key=?*key, value=value.0.value(), "released key");
+                    if let Err(_) = app.set_key(value.0, KeyStatus::Pressed) {
+                        value.1 = Some(last)
+                    }
                 } else {
                     value.1 = Some(last);
                 }

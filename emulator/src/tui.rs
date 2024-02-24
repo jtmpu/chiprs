@@ -1,4 +1,4 @@
-use crate::{app::App, event::EventHandler, ui};
+use crate::{app::App, event::EventHandler, ui::Renderer};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
@@ -16,11 +16,16 @@ pub struct Tui {
     terminal: CrosstermTerminal,
     /// Terminal event handler
     pub events: EventHandler,
+    renderer: Renderer,
 }
 
 impl Tui {
-    pub fn new(terminal: CrosstermTerminal, events: EventHandler) -> Self {
-        Self { terminal, events }
+    pub fn new(terminal: CrosstermTerminal, events: EventHandler, renderer: Renderer) -> Self {
+        Self {
+            terminal,
+            events,
+            renderer,
+        }
     }
 
     pub fn enter(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -50,7 +55,8 @@ impl Tui {
     }
 
     pub fn draw(&mut self, app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-        self.terminal.draw(|frame| ui::render(app, frame))?;
+        self.terminal
+            .draw(|frame| self.renderer.render(app, frame))?;
         Ok(())
     }
 }

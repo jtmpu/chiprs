@@ -153,8 +153,9 @@ pub struct Emulator {
     wait_for_key: Option<u8>,
 
     // configurations
-    hertz: usize,
-    timeboxes: usize,
+    pub hertz: usize,
+    pub timeboxes: usize,
+    pub source_file: Option<String>,
 
     // thread communication
     receiver: Option<Receiver<Message>>,
@@ -176,6 +177,7 @@ impl Emulator {
             wait_for_key: None,
             hertz,
             timeboxes,
+            source_file: None,
             receiver: None,
         };
         ret.reset();
@@ -195,6 +197,7 @@ impl Emulator {
         self.last_delay_decrement = None;
         self.key_status = [KeyStatus::Up; KEY_COUNT];
         self.wait_for_key = None;
+        self.source_file = None;
         self.load_default_sprites().unwrap();
     }
 
@@ -520,7 +523,6 @@ impl Emulator {
                 return true;
             }
             Message::SendGraphics(channel) => {
-                debug!("received graphics request");
                 match channel.send(self.copy_graphics_buffer()) {
                     Ok(_) => {}
                     Err(_) => {
@@ -529,7 +531,10 @@ impl Emulator {
                     }
                 };
             }
-            Message::KeyEvent(key, status) => self.set_key(key, status),
+            Message::KeyEvent(key, status) => {
+                info!(key = ?key, status = ?status, "received key event");
+                self.set_key(key, status);
+            }
         };
         false
     }

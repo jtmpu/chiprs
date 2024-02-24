@@ -25,7 +25,7 @@ type Result<T> = std::result::Result<T, Err>;
 #[command(version, about, long_about = None)]
 struct Arguments {
     #[arg(short, long)]
-    file: String,
+    file: Option<String>,
     #[arg(long, default_value_t = 30)]
     fps: usize,
     #[arg(long, default_value_t = 400)]
@@ -51,15 +51,18 @@ fn main() -> Result<()> {
     // Initialize the tracing subscriber
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let mut app = App::new();
-    app.load_and_run(&args.file, args.hz, args.timeboxes)
-        .unwrap();
+    let mut app = App::new(args.fps, args.hz, args.timeboxes);
+
+    if let Some(f) = args.file {
+        app.emulator_from_file(&f).unwrap();
+    }
 
     let backend = CrosstermBackend::new(std::io::stderr());
     let terminal = Terminal::new(backend)?;
     let tick_rate = 1_000_000 / args.fps;
     let events = EventHandler::new(tick_rate as u64);
-    let mut tui = Tui::new(terminal, events);
+    let renderer = ui::RendererBuilder::new().build();
+    let mut tui = Tui::new(terminal, events, renderer);
 
     let mut key_handler = update::KeyHandler::new(Duration::from_millis(args.key_press_delay));
     key_handler.bind('0', 0);
@@ -80,12 +83,14 @@ fn main() -> Result<()> {
     key_handler.bind('f', 15);
 
     tui.enter()?;
-    while !app.should_quit {
-        app.request_data();
+    while !app.should_quit() {
         tui.draw(&mut app)?;
 
         match tui.events.next()? {
-            Event::Tick => key_handler.tick(&mut app),
+            Event::Tick => {
+                app.tick();
+                key_handler.tick(&mut app);
+            }
             Event::KeyEvent(key_event) => key_handler.handle_key(&mut app, key_event),
             Event::Mouse(_) => {}
             Event::Resize(_, _) => {}

@@ -1,38 +1,40 @@
 use chip8::emulator;
 use ratatui::{
-    prelude::{Buffer, Color, Rect},
+    prelude::{Buffer, Rect, Style},
     widgets::{Widget, WidgetRef},
 };
 
-pub struct Display {
-    pixel_filled: &'static str,
-    pixel_empty: &'static str,
-    buffer: [u8; emulator::GRAPHICS_BUFFER_SIZE],
+pub struct Display<'a> {
+    pixel_filled: String,
+    pixel_empty: String,
+    buffer: &'a [u8; emulator::GRAPHICS_BUFFER_SIZE],
+    style: Style,
 }
 
-impl Widget for Display {
+impl<'a> Widget for Display<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.render_ref(area, buf);
     }
 }
 
-impl WidgetRef for Display {
+impl<'a> WidgetRef for Display<'a> {
     fn render_ref(&self, area: Rect, buf: &mut Buffer) {
         self.render_pixels(area, buf);
     }
 }
 
-impl Display {
+impl<'a> Display<'a> {
     pub fn new(
-        _width: usize,
-        _height: usize,
-        buffer: [u8; emulator::GRAPHICS_BUFFER_SIZE],
+        buffer: &'a [u8; emulator::GRAPHICS_BUFFER_SIZE],
+        pixel_filled: String,
+        pixel_empty: String,
+        style: Style,
     ) -> Self {
         Self {
-            //pixel_filled: "█",
-            pixel_filled: "█",
-            pixel_empty: " ",
+            pixel_filled,
+            pixel_empty,
             buffer,
+            style,
         }
     }
 
@@ -56,9 +58,9 @@ impl Display {
                 let mask = (0x1_u32 << (7 - bit_index)) as u8;
                 let bit = self.buffer[byte as usize] & mask;
                 let pixel = if bit > 0 {
-                    self.pixel_filled
+                    &self.pixel_filled
                 } else {
-                    self.pixel_empty
+                    &self.pixel_empty
                 };
 
                 for w in 0..cell_width {
@@ -70,7 +72,7 @@ impl Display {
                     if y >= area.height {
                         break;
                     }
-                    buf.get_mut(x, y).set_symbol(pixel).set_fg(Color::Yellow);
+                    buf.get_mut(x, y).set_symbol(pixel).set_style(self.style);
                 }
             }
         }
