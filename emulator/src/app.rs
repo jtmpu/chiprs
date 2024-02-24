@@ -57,6 +57,10 @@ impl App {
         match emulator_state {
             EmulatorState::Running(state) => {
                 info!("pausing emulator");
+                match state.sender.send(Message::Pause) {
+                    Ok(_) => {}
+                    Err(error) => error!(%error, "failed to send pause command to emulator"),
+                };
                 let emulator = match state.handle.join() {
                     Ok(e) => e,
                     Err(error) => {
