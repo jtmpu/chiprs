@@ -154,7 +154,10 @@ impl App {
         key: u4,
         status: KeyStatus,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        match &self.emulator_state {
+        match &mut self.emulator_state {
+            EmulatorState::Paused(state) => {
+                state.emulator.set_key(key, status);
+            }
             EmulatorState::Running(state) => {
                 match state.sender.send(Message::KeyEvent(key, status)) {
                     Ok(_) => {}
@@ -173,6 +176,18 @@ impl App {
             }
         };
         Ok(())
+    }
+
+    pub fn emulator_step(&mut self) {
+        match &mut self.emulator_state {
+            EmulatorState::Paused(state) => {
+                match state.emulator.tick() {
+                    Ok(_) => {},
+                    Err(error) => error!(%error, "failed to step emulator"),
+                }
+            },
+            _ => {},
+        }
     }
 }
 

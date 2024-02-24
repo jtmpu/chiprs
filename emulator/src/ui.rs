@@ -133,7 +133,7 @@ impl Renderer {
             }
         };
         let msg = format!(
-            "Emulator: {} | FPS: {} | CPU Hz: {} | File: {} | 'q' - quit, 'p' - play/pause",
+            "Emulator: {} | FPS: {} | CPU Hz: {} | File: {} | 'q' - quit, 'p' - play/pause, 's' - step, '<F2>' - game, '<F3>' - debug",
             emu_state,
             app.fps(),
             hz,

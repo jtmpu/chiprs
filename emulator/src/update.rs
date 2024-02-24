@@ -39,6 +39,9 @@ impl KeyHandler {
                     app.start();
                 }
             }
+            KeyCode::Char('s') => {
+                app.emulator_step();
+            }
             KeyCode::Char(c) => {
                 if self.keys.contains_key(&c) {
                     let value = self.keys[&c].0;
