@@ -233,7 +233,7 @@ impl Instruction {
             }
             Self::SetRegisterRegister(regx, regy) => {
                 let big: u16 = 0x80 | (regx.value() as u16);
-                let small: u16 = ((regy.value() as u16) << 4) | (0x00 as u16);
+                let small: u16 = (regy.value() as u16) << 4;
                 (big << 8) | small
             }
             Self::SetMemRegisterDefaultSprit(regx) => {

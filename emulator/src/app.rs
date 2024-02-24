@@ -3,7 +3,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use chip8::{
     emulator::{self, Emulator, KeyStatus, Message, GRAPHICS_BUFFER_SIZE},

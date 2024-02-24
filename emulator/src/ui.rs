@@ -7,7 +7,7 @@ use crate::{
     app::{App, EmulatorState, ViewState},
     widgets::display::Display,
 };
-use chip8::emulator::{DISPLAY_HEIGHT, DISPLAY_WIDTH, GRAPHICS_BUFFER_SIZE};
+
 
 pub struct RendererBuilder {
     color_main_fg: Color,
