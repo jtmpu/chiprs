@@ -3,7 +3,6 @@ use std::io::{self, BufReader, Read, Write};
 
 use clap::{Args, Parser, Subcommand};
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
 use tracing::{error, Level};
 
 use chip8::assembly::lexer::Lexer;
@@ -101,7 +100,6 @@ fn main() {
             run_disassembler(a, &args);
         }
         Some(Commands::Instr) => {
-            println!("Currently supported instructions: ");
             let mut longest = 0;
             for i in Instruction::iter() {
                 let length = i.to_assembly().len();

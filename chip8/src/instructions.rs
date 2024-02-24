@@ -1,7 +1,6 @@
 //!
 //! Chip-8 instructions
 //!
-use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 /// Represents a 4 bit value
