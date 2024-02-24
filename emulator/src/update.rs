@@ -1,13 +1,13 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
 
 use chip8::{emulator::KeyStatus, instructions::u4};
-use tracing::info;
+use tracing::{error, info};
 
-use crate::app::{App, EmulatorState};
+use crate::app::{App, EmulatorState, ViewState};
 
 // Used to deal with artifical key releases
 pub struct KeyHandler {
@@ -41,6 +41,12 @@ impl KeyHandler {
             }
             KeyCode::Char('s') => {
                 app.emulator_step();
+            }
+            KeyCode::F(2) => {
+                app.set_view_state(ViewState::GameView);
+            }
+            KeyCode::F(3) => {
+                app.set_view_state(ViewState::DebugView);
             }
             KeyCode::Char(c) => {
                 if self.keys.contains_key(&c) {

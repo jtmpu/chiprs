@@ -102,12 +102,7 @@ impl Renderer {
                 );
             }
             ViewState::DebugView => {
-                frame.render_widget(
-                    Paragraph::new("DebugView".to_string())
-                        .style(Style::default())
-                        .alignment(Alignment::Left),
-                    layout[1],
-                );
+                self.render_debug_view(app, frame, layout[1]);
             }
         }
     }
@@ -148,6 +143,58 @@ impl Renderer {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
                 ),
+            rect,
+        );
+    }
+
+    ///
+    ///
+    ///
+    fn render_debug_view(&self, app: &mut App, frame: &mut Frame, rect: Rect) {
+        let snapshot = app.emulator_snapshot();
+
+        let regs: String = snapshot
+            .registries
+            .iter()
+            .enumerate()
+            .map(|(index, value)| format!("r{}: {:02x}", index, value))
+            .collect::<Vec<String>>()
+            .join(" ");
+        let keyboard_status: String = snapshot
+            .key_status
+            .iter()
+            .enumerate()
+            .map(|(index, value)| format!("k[{:02x}]={:?}", index, value))
+            .collect::<Vec<String>>()
+            .join(" ");
+        let data = format!(
+            "
+Registries:
+{}
+
+PC: {:02x}
+SP: {:02x}
+DT: {:02x}
+I:  {:04x}
+
+Stack:
+{:?}
+
+Keyboard status:
+{}
+",
+            regs,
+            snapshot.program_counter,
+            snapshot.stack_pointer,
+            snapshot.delay_timer,
+            snapshot.address_register,
+            snapshot.stack,
+            keyboard_status,
+        );
+        frame.render_widget(
+            Paragraph::new(data)
+                .style(self.style_main)
+                .alignment(Alignment::Left),
             rect,
         );
     }

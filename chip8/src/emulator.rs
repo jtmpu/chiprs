@@ -131,10 +131,22 @@ impl Builder {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Default)]
 pub enum KeyStatus {
+    #[default]
     Up,
     Pressed,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Snapshot {
+    pub registries: [u8; REGISTRY_COUNT],
+    pub program_counter: usize,
+    pub stack_pointer: usize,
+    pub address_register: usize,
+    pub delay_timer: u8,
+    pub stack: [usize; STACK_SIZE],
+    pub key_status: [KeyStatus; KEY_COUNT],
 }
 
 pub struct Emulator {
@@ -423,6 +435,18 @@ impl Emulator {
 
     pub fn copy_graphics_buffer(&self) -> [u8; GRAPHICS_BUFFER_SIZE] {
         self.graphics_buffer
+    }
+
+    pub fn create_snapshot(&self) -> Snapshot {
+        Snapshot {
+            registries: self.registries.clone(),
+            program_counter: self.program_counter.clone(),
+            address_register: self.address_register.clone(),
+            delay_timer: self.delay_timer.clone(),
+            stack: self.stack.clone(),
+            stack_pointer: self.stack_pointer.clone(),
+            key_status: self.key_status.clone(),
+        }
     }
 
     pub fn set_key(&mut self, key: u4, status: KeyStatus) {

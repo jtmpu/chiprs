@@ -6,7 +6,7 @@ use std::{
 use tracing::{error, info};
 
 use chip8::{
-    emulator::{self, Emulator, KeyStatus, Message, GRAPHICS_BUFFER_SIZE},
+    emulator::{self, Emulator, KeyStatus, Message, Snapshot, GRAPHICS_BUFFER_SIZE},
     instructions::u4,
 };
 
@@ -19,6 +19,7 @@ pub struct App {
     view_state: ViewState,
     emulator_state: EmulatorState,
     graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
+    last_snapshot: Snapshot,
 }
 
 impl App {
@@ -32,6 +33,7 @@ impl App {
             view_state: ViewState::GameView,
             emulator_state: EmulatorState::Unloaded,
             graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
+            last_snapshot: Snapshot::default(),
         }
     }
 
@@ -116,6 +118,10 @@ impl App {
         self.timeboxes
     }
 
+    pub fn set_view_state(&mut self, state: ViewState) {
+        self.view_state = state;
+    }
+
     pub fn tick(&mut self) {
         match &mut self.emulator_state {
             EmulatorState::Unloaded => {}
@@ -145,6 +151,7 @@ impl App {
             .with_timeboxes(self.timeboxes)
             .load_program(file)?;
         self.file = Some(file.to_string());
+        self.last_snapshot = emulator.create_snapshot();
         self.emulator_state = EmulatorState::Paused(PausedEmulator { emulator });
         Ok(())
     }
@@ -156,7 +163,16 @@ impl App {
     ) -> Result<(), Box<dyn std::error::Error>> {
         match &mut self.emulator_state {
             EmulatorState::Paused(state) => {
-                state.emulator.set_key(key, status);
+                // Key presses become toggles in pause mode
+                let snapshot = state.emulator.create_snapshot();
+                // If key == pressed
+                if snapshot.key_status[key.value() as usize] == status {
+                    info!(key=?key, "detected previously pressed key, unsetting key");
+                    state.emulator.set_key(key, KeyStatus::Up);
+                } else {
+                    state.emulator.set_key(key, status);
+                }
+                self.last_snapshot = state.emulator.create_snapshot();
             }
             EmulatorState::Running(state) => {
                 match state.sender.send(Message::KeyEvent(key, status)) {
@@ -180,14 +196,18 @@ impl App {
 
     pub fn emulator_step(&mut self) {
         match &mut self.emulator_state {
-            EmulatorState::Paused(state) => {
-                match state.emulator.tick() {
-                    Ok(_) => {},
-                    Err(error) => error!(%error, "failed to step emulator"),
+            EmulatorState::Paused(state) => match state.emulator.tick() {
+                Ok(_) => {
+                    self.last_snapshot = state.emulator.create_snapshot();
                 }
+                Err(error) => error!(%error, "failed to step emulator"),
             },
-            _ => {},
+            _ => {}
         }
+    }
+
+    pub fn emulator_snapshot(&mut self) -> &Snapshot {
+        &self.last_snapshot
     }
 }
 
