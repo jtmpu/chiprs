@@ -140,6 +140,35 @@ impl RawInstr {
                 }
                 Instruction::Exit
             }
+            "break" => {
+                if let Some(v) = &self.arg1 {
+                    return Err(ParsingError::ArgumentError(
+                        "break",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "break",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::Breakpoint
+            }
+            "debug" => {
+                let value = RawInstr::parse_as_value(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("debug", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "debug",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::Debug(value.into())
+            }
             "clear" => {
                 if let Some(v) = &self.arg1 {
                     return Err(ParsingError::ArgumentError(
@@ -1003,10 +1032,32 @@ mod test {
     }
 
     #[test]
-    fn parse_abort() {
+    fn parse_exit() {
         parse_and_assert(
             "exit",
             [Instruction::Exit]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_break() {
+        parse_and_assert(
+            "break",
+            [Instruction::Breakpoint]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_debug() {
+        parse_and_assert(
+            "debug 4",
+            [Instruction::Debug(0x04.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

@@ -97,8 +97,12 @@ impl From<u16> for u12 {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Instruction {
-    /// dead - Custom code to make assembler exit gracefully
+    /// f1ee - Custom code - make emulator exit
     Exit,
+    /// fxef - Custom code - debug-log some data (determined by value of x)
+    Debug(u4),
+    /// fxff - Custom code - breakpoint - pauses the execution
+    Breakpoint,
     /// 00e0
     Clear,
     /// 00EE - return from subroutine
@@ -180,6 +184,8 @@ impl Instruction {
             (0xF0, regx, 0x00, 0x07) => Some(Self::SetRegisterDelayTimer(regx.into())),
             (0xF0, regx, 0x10, 0x05) => Some(Self::SetDelayTimer(regx.into())),
             (0xF0, 0x01, 0xE0, 0x0E) => Some(Self::Exit),
+            (0xF0, val, 0xE0, 0x0F) => Some(Self::Debug(val.into())),
+            (0xF0, _, 0xF0, 0x0F) => Some(Self::Breakpoint),
             (_, _, _, _) => None,
         }
     }
@@ -187,6 +193,12 @@ impl Instruction {
     pub fn opcode(&self) -> u16 {
         match self {
             Self::Exit => 0xf1ee,
+            Self::Debug(val) => {
+                let big: u16 = 0xF0 | (val.value() as u16);
+                let small: u16 = 0xEF;
+                (big << 8) | small
+            }
+            Self::Breakpoint => 0xF0FF,
             Self::Clear => 0x00e0,
             Self::Return => 0x00ee,
             Self::Jump(addr) => 0x1000 | addr.value(),
@@ -257,6 +269,8 @@ impl Instruction {
     pub fn to_assembly(&self) -> String {
         match self {
             Self::Exit => "exit".to_string(),
+            Self::Debug(val) => format!("debug {}", val.value()),
+            Self::Breakpoint => "break".to_string(),
             Self::Clear => "clear".to_string(),
             Self::Return => "ret".to_string(),
             Self::Jump(addr) => format!("jmp {}", addr.value()),
@@ -317,6 +331,8 @@ mod tests {
     fn test_instruction_from_opcode() {
         let cases: Vec<(u16, Instruction)> = vec![
             (0xF1EE, Instruction::Exit),
+            (0xF3EF, Instruction::Debug(0x03.into())),
+            (0xF0FF, Instruction::Breakpoint),
             (0x00E0, Instruction::Clear),
             (0x00EE, Instruction::Return),
             (0x1BFD, Instruction::Jump(u12::from_u16(0xBFD))),
@@ -354,6 +370,8 @@ mod tests {
     fn test_instruction_to_opcode() {
         let cases: Vec<(Instruction, u16)> = vec![
             (Instruction::Exit, 0xF1EE),
+            (Instruction::Debug(0x03.into()), 0xF3EF),
+            (Instruction::Breakpoint, 0xF0FF),
             (Instruction::Clear, 0x00E0),
             (Instruction::Return, 0x00EE),
             (Instruction::Jump(0x123.into()), 0x1123),

@@ -407,6 +407,18 @@ impl Emulator {
             Instruction::SetDelayTimer(regx) => {
                 self.delay_timer = self.registries[regx.value() as usize];
             }
+            Instruction::Debug(value) => {
+                let msg = match value {
+                    x if x == u4::little(1) => {
+                        format!("{:?}", self.registries)
+                    },
+                    _ => return Ok(true),
+                };
+                info!(source = "debug-instruction", msg);
+            }
+            Instruction::Breakpoint => {
+                return Ok(false)
+            }
         };
         Ok(true)
     }
@@ -504,7 +516,11 @@ impl Emulator {
                 }
 
                 match self.tick() {
-                    Ok(_) => {}
+                    Ok(true) => {},
+                    Ok(false) => {
+                        // Breakpoint hit, pause execution
+                        break;
+                    },
                     Err(error) => {
                         error!(%error, "pausing emulator execution");
                         break;
