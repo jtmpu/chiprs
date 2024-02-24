@@ -901,7 +901,7 @@ mod test {
         emulator.tick().unwrap();
         emulator.tick().unwrap();
         emulator.tick().unwrap();
-        
+
         assert!(emulator.sound_timer > 0);
     }
 
@@ -929,7 +929,7 @@ mod test {
         emulator.tick().unwrap();
         emulator.tick().unwrap();
         emulator.tick().unwrap();
-        
+
         // Teleport 2 seconds into the future to force a timer decrement
         // reaction - we're limited to one decrement per tick
         let t = Instant::now().checked_sub(Duration::from_secs(2)).unwrap();

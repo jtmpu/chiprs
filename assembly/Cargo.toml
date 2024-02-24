@@ -8,5 +8,7 @@ edition = "2021"
 [dependencies]
 chip8 = { version = "0.1.0", path = "../chip8" }
 clap = { version = "4.5.1", features = ["derive"] }
+strum = { version = "0.26.1", features = ["strum_macros"] }
+strum_macros = "0.26.1"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

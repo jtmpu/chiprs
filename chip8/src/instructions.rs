@@ -1,9 +1,11 @@
 //!
 //! Chip-8 instructions
 //!
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 /// Represents a 4 bit value
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[allow(non_camel_case_types)]
 pub struct u4 {
     value: u8,
@@ -53,7 +55,7 @@ impl From<u8> for u4 {
 }
 
 /// Represents a 12 bit value
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[allow(non_camel_case_types)]
 pub struct u12 {
     value: u16,
@@ -95,7 +97,7 @@ impl From<u16> for u12 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
 pub enum Instruction {
     /// f1ee - Custom code - make emulator exit
     Exit,

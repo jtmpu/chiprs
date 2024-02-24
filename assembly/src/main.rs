@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
 
 use clap::{Args, Parser, Subcommand};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tracing::{error, Level};
 
 use chip8::assembly::lexer::Lexer;
@@ -29,6 +31,7 @@ struct CliArgs {
 enum Commands {
     Asm(AssemblyCommands),
     Disasm(DisassembleCommands),
+    Instr,
 }
 
 #[derive(Debug, Args)]
@@ -96,6 +99,23 @@ fn main() {
         }
         Some(Commands::Disasm(a)) => {
             run_disassembler(a, &args);
+        }
+        Some(Commands::Instr) => {
+            println!("Currently supported instructions: ");
+            let mut longest = 0;
+            for i in Instruction::iter() {
+                let length = i.to_assembly().len();
+                if length > longest {
+                    longest = length;
+                }
+            }
+            longest += 2; // Add padding
+            for instruction in Instruction::iter() {
+                let asm = instruction.to_assembly();
+                let pad_count = longest - asm.len();
+                let pad = (0..pad_count).map(|_| " ").collect::<Vec<&str>>().join("");
+                println!("{}{}({:?})", asm, pad, instruction)
+            }
         }
         None => {}
     };
