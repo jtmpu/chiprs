@@ -32,7 +32,13 @@ impl KeyHandler {
         info!(code = ?key_event.code, "received key press event");
         match key_event.code {
             KeyCode::Esc | KeyCode::Char('q') => app.quit(),
-            KeyCode::Char('p') => app.toggle_run(),
+            KeyCode::Char('p') => {
+                if app.is_running() {
+                    app.pause();
+                } else {
+                    app.start();
+                }
+            }
             KeyCode::Char(c) => {
                 if self.keys.contains_key(&c) {
                     let value = self.keys[&c].0;

@@ -48,20 +48,42 @@ impl App {
         self.should_quit
     }
 
-    pub fn toggle_run(&mut self) {
+    pub fn is_running(&self) -> bool {
+        matches!(self.emulator_state, EmulatorState::Running(_))
+    }
+
+    pub fn pause(&mut self) {
         let emulator_state = std::mem::replace(&mut self.emulator_state, EmulatorState::Unloaded);
         match emulator_state {
-            EmulatorState::Unloaded => {
+            EmulatorState::Running(state) => {
+                info!("pausing emulator");
+                let emulator = match state.handle.join() {
+                    Ok(e) => e,
+                    Err(error) => {
+                        error!(?error, "failed to thread::join on emulator");
+                        return;
+                    }
+                };
+                self.emulator_state = EmulatorState::Paused(PausedEmulator { emulator });
+            }
+            _ => {
                 self.emulator_state = emulator_state;
             }
-            EmulatorState::Running(_) => {
-                self.emulator_state = emulator_state;
-            }
-            EmulatorState::Paused(e) => {
+        }
+    }
+
+    pub fn start(&mut self) {
+        let emulator_state = std::mem::replace(&mut self.emulator_state, EmulatorState::Unloaded);
+        match emulator_state {
+            EmulatorState::Paused(state) => {
+                info!("starting emulator");
                 let (sender, receiver) = channel::<Message>();
-                let handle = e.emulator.run(Some(receiver));
+                let handle = state.emulator.run(Some(receiver));
                 let state = RunningEmulator { handle, sender };
                 self.emulator_state = EmulatorState::Running(state);
+            }
+            _ => {
+                self.emulator_state = emulator_state;
             }
         }
     }
@@ -107,7 +129,8 @@ impl App {
 
                 // An error occurred == channel disconnect
                 // the emulator has paused.
-                self.toggle_run();
+                error!("detected emulator termination, pausing emulator");
+                self.pause();
             }
         }
     }

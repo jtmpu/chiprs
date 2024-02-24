@@ -512,7 +512,6 @@ impl Emulator {
                 last_tick = Instant::now();
             }
         }
-
         info!("pausing chip-8 machine");
     }
 
