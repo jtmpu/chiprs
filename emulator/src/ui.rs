@@ -167,10 +167,16 @@ impl Renderer {
             .map(|(index, value)| format!("k[{:02x}]={:?}", index, value))
             .collect::<Vec<String>>()
             .join(" ");
+        let instr = match snapshot.instruction {
+            Some(i) => format!("{:?}", i),
+            None => format!("INVALID"),
+        };
         let data = format!(
             "
 Registries:
 {}
+
+Next: {}
 
 PC: {:02x}
 SP: {:02x}
@@ -184,6 +190,7 @@ Keyboard status:
 {}
 ",
             regs,
+            instr,
             snapshot.program_counter,
             snapshot.stack_pointer,
             snapshot.delay_timer,

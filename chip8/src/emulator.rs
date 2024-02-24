@@ -147,6 +147,7 @@ pub struct Snapshot {
     pub delay_timer: u8,
     pub stack: [usize; STACK_SIZE],
     pub key_status: [KeyStatus; KEY_COUNT],
+    pub instruction: Option<Instruction>,
 }
 
 pub struct Emulator {
@@ -411,14 +412,12 @@ impl Emulator {
                 let msg = match value {
                     x if x == u4::little(1) => {
                         format!("{:?}", self.registries)
-                    },
+                    }
                     _ => return Ok(true),
                 };
                 info!(source = "debug-instruction", msg);
             }
-            Instruction::Breakpoint => {
-                return Ok(false)
-            }
+            Instruction::Breakpoint => return Ok(false),
         };
         Ok(true)
     }
@@ -458,6 +457,10 @@ impl Emulator {
             stack: self.stack.clone(),
             stack_pointer: self.stack_pointer.clone(),
             key_status: self.key_status.clone(),
+            instruction: match self.instruction() {
+                Ok(i) => Some(i),
+                Err(_) => None,
+            },
         }
     }
 
@@ -516,11 +519,11 @@ impl Emulator {
                 }
 
                 match self.tick() {
-                    Ok(true) => {},
+                    Ok(true) => {}
                     Ok(false) => {
                         // Breakpoint hit, pause execution
                         break;
-                    },
+                    }
                     Err(error) => {
                         error!(%error, "pausing emulator execution");
                         break;
