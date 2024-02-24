@@ -159,16 +159,17 @@ pub struct Emulator {
     // I registry
     address_register: usize,
     delay_timer: u8,
+    sound_timer: u8,
     stack: [usize; STACK_SIZE],
     graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
     last_delay_decrement: Option<Instant>,
+    last_sound_decrement: Option<Instant>,
     key_status: [KeyStatus; KEY_COUNT],
     wait_for_key: Option<u8>,
 
     // configurations
-    pub hertz: usize,
-    pub timeboxes: usize,
-    pub source_file: Option<String>,
+    hertz: usize,
+    timeboxes: usize,
 
     // thread communication
     receiver: Option<Receiver<Message>>,
@@ -183,14 +184,15 @@ impl Emulator {
             stack_pointer: 0,
             address_register: 0,
             delay_timer: 0,
+            sound_timer: 0,
             stack: [0; STACK_SIZE],
             graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
             last_delay_decrement: None,
+            last_sound_decrement: None,
             key_status: [KeyStatus::Up; KEY_COUNT],
             wait_for_key: None,
             hertz,
             timeboxes,
-            source_file: None,
             receiver: None,
         };
         ret.reset();
@@ -205,12 +207,13 @@ impl Emulator {
         self.stack_pointer = 0;
         self.address_register = 0;
         self.delay_timer = 0;
+        self.sound_timer = 0;
         self.stack = [0; STACK_SIZE];
         self.graphics_buffer = [0; GRAPHICS_BUFFER_SIZE];
         self.last_delay_decrement = None;
+        self.last_sound_decrement = None;
         self.key_status = [KeyStatus::Up; KEY_COUNT];
         self.wait_for_key = None;
-        self.source_file = None;
         self.load_default_sprites().unwrap();
     }
 
@@ -408,6 +411,9 @@ impl Emulator {
             Instruction::SetDelayTimer(regx) => {
                 self.delay_timer = self.registries[regx.value() as usize];
             }
+            Instruction::SetSoundTimer(regx) => {
+                self.sound_timer = self.registries[regx.value() as usize];
+            }
             Instruction::Debug(value) => {
                 let msg = match value {
                     x if x == u4::little(1) => {
@@ -440,6 +446,20 @@ impl Emulator {
             } else {
                 // Just started a delay timer, start keeping track of time
                 self.last_delay_decrement = Some(Instant::now());
+            }
+        }
+        if self.sound_timer > 0 {
+            if let Some(last_sound_decrement) = self.last_sound_decrement {
+                if last_sound_decrement.elapsed().as_micros() > TIME_BETWEEN_DECREMENT {
+                    self.sound_timer -= 1;
+                    self.last_sound_decrement = Some(Instant::now());
+                }
+
+                if self.sound_timer == 0 {
+                    self.last_sound_decrement = None;
+                }
+            } else {
+                self.last_sound_decrement = Some(Instant::now());
             }
         }
     }
@@ -855,6 +875,70 @@ mod test {
         emulator.tick().unwrap();
         // Two decrements should've occured
         assert_eq!(emulator.delay_timer, 1);
+    }
+
+    #[test]
+    fn test_sound_timer_start() {
+        let input = "
+        main:
+            ldb r1 3
+            ldb r3 0
+            sound r1
+            ldb r4 0
+            ldb r4 0
+            ldb r4 0
+            ldb r4 0
+            ";
+        let reader = BufReader::new(input.as_bytes());
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
+        let binary = parser.parse().unwrap().binary().unwrap();
+        let mut emulator = Emulator::new(400, 100);
+        let cursor = Cursor::new(binary);
+        emulator.load(cursor).unwrap();
+        //
+        // 3 ticks to start delay timer
+        emulator.tick().unwrap();
+        emulator.tick().unwrap();
+        emulator.tick().unwrap();
+        
+        assert!(emulator.sound_timer > 0);
+    }
+
+    #[test]
+    fn test_sound_timer_tick() {
+        let input = "
+        main:
+            ldb r1 3
+            ldb r3 0
+            sound r1
+            ldb r4 0
+            ldb r4 0
+            ldb r4 0
+            ldb r4 0
+            ";
+        let reader = BufReader::new(input.as_bytes());
+        let lexer = StreamLexer::new(reader);
+        let mut parser = Parser::new(Box::new(lexer));
+        let binary = parser.parse().unwrap().binary().unwrap();
+        let mut emulator = Emulator::new(400, 100);
+        let cursor = Cursor::new(binary);
+        emulator.load(cursor).unwrap();
+        //
+        // 3 ticks to start delay timer
+        emulator.tick().unwrap();
+        emulator.tick().unwrap();
+        emulator.tick().unwrap();
+        
+        // Teleport 2 seconds into the future to force a timer decrement
+        // reaction - we're limited to one decrement per tick
+        let t = Instant::now().checked_sub(Duration::from_secs(2)).unwrap();
+        emulator.last_sound_decrement = Some(t);
+        emulator.tick().unwrap();
+        emulator.last_sound_decrement = Some(t);
+        emulator.tick().unwrap();
+        // Two decrements should've occured
+        assert_eq!(emulator.sound_timer, 1);
     }
 
     #[test]

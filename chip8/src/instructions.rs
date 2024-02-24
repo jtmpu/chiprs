@@ -135,6 +135,8 @@ pub enum Instruction {
     SetRegisterDelayTimer(u4),
     /// Fx15 - Set delay timer = Vx
     SetDelayTimer(u4),
+    /// Fx18 - Set sound time = Vx
+    SetSoundTimer(u4),
 }
 
 impl Instruction {
@@ -183,6 +185,7 @@ impl Instruction {
             (0xF0, regx, 0x20, 0x09) => Some(Self::SetMemRegisterDefaultSprit(regx.into())),
             (0xF0, regx, 0x00, 0x07) => Some(Self::SetRegisterDelayTimer(regx.into())),
             (0xF0, regx, 0x10, 0x05) => Some(Self::SetDelayTimer(regx.into())),
+            (0xF0, regx, 0x10, 0x08) => Some(Self::SetSoundTimer(regx.into())),
             (0xF0, 0x01, 0xE0, 0x0E) => Some(Self::Exit),
             (0xF0, val, 0xE0, 0x0F) => Some(Self::Debug(val.into())),
             (0xF0, _, 0xF0, 0x0F) => Some(Self::Breakpoint),
@@ -263,6 +266,11 @@ impl Instruction {
                 let small: u16 = 0x15;
                 (big << 8) | small
             }
+            Self::SetSoundTimer(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x18;
+                (big << 8) | small
+            }
         }
     }
 
@@ -291,6 +299,7 @@ impl Instruction {
             Self::SetMemRegisterDefaultSprit(reg) => format!("ldf {}", reg.value()),
             Self::SetRegisterDelayTimer(reg) => format!("ldd r{}", reg.value()),
             Self::SetDelayTimer(reg) => format!("delay r{}", reg.value()),
+            Self::SetSoundTimer(reg) => format!("sound r{}", reg.value()),
         }
     }
 }
@@ -355,6 +364,7 @@ mod tests {
             (0xFA29, Instruction::SetMemRegisterDefaultSprit(0x0A.into())),
             (0xF107, Instruction::SetRegisterDelayTimer(0x01.into())),
             (0xF915, Instruction::SetDelayTimer(0x09.into())),
+            (0xF918, Instruction::SetSoundTimer(0x09.into())),
         ];
 
         for case in cases {
@@ -394,6 +404,7 @@ mod tests {
             (Instruction::SetMemRegisterDefaultSprit(0x02.into()), 0xF229),
             (Instruction::SetRegisterDelayTimer(0x07.into()), 0xF707),
             (Instruction::SetDelayTimer(0x02.into()), 0xF215),
+            (Instruction::SetSoundTimer(0x02.into()), 0xF218),
         ];
         for case in cases {
             let opcode = case.0.opcode();

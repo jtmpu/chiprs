@@ -391,6 +391,25 @@ impl RawInstr {
                 }
                 Instruction::SetDelayTimer(regx_index)
             }
+            "sound" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sound", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "sound",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "sound",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SetSoundTimer(regx_index)
+            }
             "skp" => {
                 let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("skp", self.location, e))?;
@@ -1058,6 +1077,17 @@ mod test {
         parse_and_assert(
             "debug 4",
             [Instruction::Debug(0x04.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_sound() {
+        parse_and_assert(
+            "sound r4",
+            [Instruction::SetSoundTimer(0x04.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),
