@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chip8::{emulator::Key, instructions::u4};
+use chip8::{emulator::KeyStatus, instructions::u4};
 use tracing::info;
 
 use crate::app::App;
@@ -35,7 +35,7 @@ impl KeyHandler {
             KeyCode::Char(c) => {
                 if self.keys.contains_key(&c) {
                     let value = self.keys[&c].0;
-                    app.set_key(value, Key::Pressed);
+                    app.set_key(value, KeyStatus::Pressed);
                     self.keys.insert(c, (value, Some(Instant::now())));
                 }
             }
@@ -50,7 +50,7 @@ impl KeyHandler {
             if let Some(last) = value.1.take() {
                 if last.elapsed() > self.delay {
                     info!(%key, value = ?value.0, "releasing key");
-                    app.set_key(value.0, Key::Up);
+                    app.set_key(value.0, KeyStatus::Up);
                 } else {
                     value.1 = Some(last);
                 }

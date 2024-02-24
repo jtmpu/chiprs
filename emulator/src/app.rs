@@ -6,7 +6,7 @@ use std::{
 use tracing::{debug, info};
 
 use chip8::{
-    emulator::{self, Key, Message},
+    emulator::{self, KeyStatus, Message},
     instructions::u4,
 };
 
@@ -44,7 +44,7 @@ impl App {
         }
     }
 
-    pub fn set_key(&mut self, key: u4, status: Key) {
+    pub fn set_key(&mut self, key: u4, status: KeyStatus) {
         if let Some(sender) = &self.sender {
             match sender.send(Message::KeyEvent(key, status)) {
                 Ok(_) => {}

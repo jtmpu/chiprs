@@ -90,7 +90,7 @@ const TIME_BETWEEN_DECREMENT: u128 = Duration::from_micros(1_000_000 / 60).as_mi
 pub enum Message {
     Pause,
     SendGraphics(Sender<[u8; GRAPHICS_BUFFER_SIZE]>),
-    KeyEvent(u4, Key),
+    KeyEvent(u4, KeyStatus),
 }
 
 pub struct Builder {
@@ -132,7 +132,7 @@ impl Builder {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Key {
+pub enum KeyStatus {
     Up,
     Pressed,
 }
@@ -149,7 +149,7 @@ pub struct Emulator {
     stack: [usize; STACK_SIZE],
     graphics_buffer: [u8; GRAPHICS_BUFFER_SIZE],
     last_delay_decrement: Option<Instant>,
-    key_status: [Key; KEY_COUNT],
+    key_status: [KeyStatus; KEY_COUNT],
     wait_for_key: Option<u8>,
 
     // configurations
@@ -172,7 +172,7 @@ impl Emulator {
             stack: [0; STACK_SIZE],
             graphics_buffer: [0; GRAPHICS_BUFFER_SIZE],
             last_delay_decrement: None,
-            key_status: [Key::Up; KEY_COUNT],
+            key_status: [KeyStatus::Up; KEY_COUNT],
             wait_for_key: None,
             hertz,
             timeboxes,
@@ -193,7 +193,7 @@ impl Emulator {
         self.stack = [0; STACK_SIZE];
         self.graphics_buffer = [0; GRAPHICS_BUFFER_SIZE];
         self.last_delay_decrement = None;
-        self.key_status = [Key::Up; KEY_COUNT];
+        self.key_status = [KeyStatus::Up; KEY_COUNT];
         self.wait_for_key = None;
         self.load_default_sprites().unwrap();
     }
@@ -249,7 +249,7 @@ impl Emulator {
 
         if let Some(regx) = self.wait_for_key {
             for (i, key) in self.key_status.iter().enumerate() {
-                if *key == Key::Pressed {
+                if *key == KeyStatus::Pressed {
                     self.registries[regx as usize] = i as u8;
                     self.wait_for_key = None;
                     break;
@@ -365,12 +365,12 @@ impl Emulator {
                 }
             }
             Instruction::SkipKeyPressed(regx) => {
-                if self.key_status[regx.value() as usize] == Key::Pressed {
+                if self.key_status[regx.value() as usize] == KeyStatus::Pressed {
                     self.program_counter += 2;
                 }
             }
             Instruction::SkipKeyNotPressed(regx) => {
-                if self.key_status[regx.value() as usize] == Key::Up {
+                if self.key_status[regx.value() as usize] == KeyStatus::Up {
                     self.program_counter += 2;
                 }
             }
@@ -399,7 +399,7 @@ impl Emulator {
     /// Decrement timers at a rate of 60hz, when a timer reaches
     /// zero this does nothing. The upper bound is 1 decrement per instruction
     /// execution
-    pub fn decrement_timers(&mut self) {
+    fn decrement_timers(&mut self) {
         if self.delay_timer > 0 {
             if let Some(last_delay_decrement) = self.last_delay_decrement {
                 if last_delay_decrement.elapsed().as_micros() > TIME_BETWEEN_DECREMENT {
@@ -422,17 +422,17 @@ impl Emulator {
         self.graphics_buffer
     }
 
-    pub fn set_key(&mut self, key: u4, status: Key) {
+    pub fn set_key(&mut self, key: u4, status: KeyStatus) {
         info!(?key, ?status, "key event");
         self.key_status[key.value() as usize] = status;
     }
 
     pub fn key_pressed(&mut self, key: u4) {
-        self.set_key(key, Key::Pressed);
+        self.set_key(key, KeyStatus::Pressed);
     }
 
     pub fn key_up(&mut self, key: u4) {
-        self.set_key(key, Key::Up);
+        self.set_key(key, KeyStatus::Up);
     }
 
     /// runs the emulator in a separate thread
