@@ -370,7 +370,9 @@ impl Emulator {
                 self.registries[regx.value() as usize] = self.registries[regy.value() as usize];
             }
             Instruction::Add(register, value) => {
-                self.registries[register.value() as usize] += value;
+                let current = self.registries[register.value() as usize];
+                let (new, _) = current.overflowing_add(value);
+                self.registries[register.value() as usize] = new;
             }
             Instruction::Or(regx, regy) => {
                 let vx = self.registries[regx.value() as usize];
@@ -462,8 +464,15 @@ impl Emulator {
                     let i1 = start + (i as usize) * 8;
                     let i2 = start + 1 + (i as usize) * 8;
 
+                    if i1 >= GRAPHICS_BUFFER_SIZE {
+                        break;
+                    }
                     let byte1 = self.graphics_buffer[i1];
                     self.graphics_buffer[i1] = byte1 ^ sp1;
+
+                    if i2 >= GRAPHICS_BUFFER_SIZE {
+                        break;
+                    }
                     let byte2 = self.graphics_buffer[i2];
                     self.graphics_buffer[i2] = byte2 ^ sp2;
 
@@ -519,14 +528,12 @@ impl Emulator {
                 self.memory[self.address_register + 2] = one;
             }
             Instruction::MemWrite(regx) => {
-                let count = self.registries[regx.value() as usize];
-                for i in 0..count {
+                for i in 0..regx.value() {
                     self.memory[self.address_register + i as usize] = self.registries[i as usize];
                 }
             }
             Instruction::MemRead(regx) => {
-                let count = self.registries[regx.value() as usize];
-                for i in 0..count {
+                for i in 0..regx.value() {
                     self.registries[i as usize] = self.memory[self.address_register + i as usize];
                 }
             }
