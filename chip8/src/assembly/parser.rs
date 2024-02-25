@@ -257,12 +257,12 @@ impl RawInstr {
             }
             "se" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                    .map_err(|e| ParsingError::ArgumentError("se", self.location, e))?;
                 let value = RawInstr::parse_as_value(self.arg2.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                    .map_err(|e| ParsingError::ArgumentError("se", self.location, e))?;
                 if let Some(v) = &self.arg3 {
                     return Err(ParsingError::ArgumentError(
-                        "sne",
+                        "se",
                         self.location,
                         ArgumentError::UnexpectedArgument(v.clone()),
                     ));
@@ -285,12 +285,12 @@ impl RawInstr {
             }
             "sre" => {
                 let regx = RawInstr::parse_as_registry(self.arg1.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                    .map_err(|e| ParsingError::ArgumentError("sre", self.location, e))?;
                 let regy = RawInstr::parse_as_registry(self.arg2.as_ref())
-                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                    .map_err(|e| ParsingError::ArgumentError("sre", self.location, e))?;
                 if let Some(v) = &self.arg3 {
                     return Err(ParsingError::ArgumentError(
-                        "sne",
+                        "sre",
                         self.location,
                         ArgumentError::UnexpectedArgument(v.clone()),
                     ));
@@ -352,6 +352,34 @@ impl RawInstr {
                     ));
                 }
                 Instruction::Or(regx_index, regy_index)
+            }
+            "and" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("and", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("and", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "and",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::And(regx_index, regy_index)
+            }
+            "xor" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("xor", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("xor", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "xor",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::Xor(regx_index, regy_index)
             }
             "ldf" => {
                 let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
@@ -1083,6 +1111,28 @@ mod test {
         parse_and_assert(
             "or r1 r2",
             [Instruction::Or(0x01.into(), 0x02.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_and() {
+        parse_and_assert(
+            "and r1 r2",
+            [Instruction::And(0x01.into(), 0x02.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_xor() {
+        parse_and_assert(
+            "xor r1 r2",
+            [Instruction::Xor(0x01.into(), 0x02.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

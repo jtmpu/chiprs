@@ -348,7 +348,8 @@ impl Emulator {
                 }
             }
             Instruction::SkipRegistersEqual(regx, regy) => {
-                if self.registries[regx.value() as usize] == self.registries[regy.value() as usize] {
+                if self.registries[regx.value() as usize] == self.registries[regy.value() as usize]
+                {
                     self.program_counter += 2;
                 }
             }
@@ -365,6 +366,16 @@ impl Emulator {
                 let vx = self.registries[regx.value() as usize];
                 let vy = self.registries[regy.value() as usize];
                 self.registries[regx.value() as usize] = vx | vy;
+            }
+            Instruction::And(regx, regy) => {
+                let vx = self.registries[regx.value() as usize];
+                let vy = self.registries[regy.value() as usize];
+                self.registries[regx.value() as usize] = vx & vy;
+            }
+            Instruction::Xor(regx, regy) => {
+                let vx = self.registries[regx.value() as usize];
+                let vy = self.registries[regy.value() as usize];
+                self.registries[regx.value() as usize] = vx ^ vy;
             }
             Instruction::Draw(regx, regy, n) => {
                 let mut vf = 0;

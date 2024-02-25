@@ -120,12 +120,16 @@ pub enum Instruction {
     SkipRegistersEqual(u4, u4),
     /// 6xkk - Set Vx = kk
     SetRegisterByte(u4, u8),
-    /// 8xy0 - Set Vx = Vy
-    SetRegisterRegister(u4, u4),
     /// 7xkk - Set Vx = Vx + kk
     Add(u4, u8),
+    /// 8xy0 - Set Vx = Vy
+    SetRegisterRegister(u4, u4),
     /// 8xy1 - Set Vx = Vx OR Vy
     Or(u4, u4),
+    /// 8xy2 - Set Vx = Vx AND Vy
+    And(u4, u4),
+    /// 8xy3 - Set Vx = Vx XOR Vy
+    Xor(u4, u4),
     /// Dxyn - Draw n-byte sprite starting at mem I at (Vx, Vy), set VF = collision
     Draw(u4, u4, u4),
     /// Ex9E - Skip next instruction if key with value of Vx is pressed
@@ -190,6 +194,8 @@ impl Instruction {
                 Some(Self::Add(register, value))
             }
             (0x80, regx, regy, 0x01) => Some(Self::Or(regx.into(), (regy >> 4).into())),
+            (0x80, regx, regy, 0x02) => Some(Self::And(regx.into(), (regy >> 4).into())),
+            (0x80, regx, regy, 0x03) => Some(Self::Xor(regx.into(), (regy >> 4).into())),
             (0xD0, regx, regy, n) => Some(Self::Draw(regx.into(), (regy >> 4).into(), n.into())),
             (0xE0, regx, 0x90, 0x0E) => Some(Self::SkipKeyPressed(regx.into())),
             (0xE0, regx, 0xA0, 0x01) => Some(Self::SkipKeyNotPressed(regx.into())),
@@ -251,6 +257,16 @@ impl Instruction {
                 let small: u16 = (regy.value() as u16) << 4 | 0x01_u16;
                 (big << 8) | small
             }
+            Self::And(regx, regy) => {
+                let big: u16 = 0x80 | (regx.value() as u16);
+                let small: u16 = (regy.value() as u16) << 4 | 0x02_u16;
+                (big << 8) | small
+            }
+            Self::Xor(regx, regy) => {
+                let big: u16 = 0x80 | (regx.value() as u16);
+                let small: u16 = (regy.value() as u16) << 4 | 0x03_u16;
+                (big << 8) | small
+            }
             Self::Draw(regx, regy, n) => {
                 let big: u16 = 0xd0 | (regx.value() as u16);
                 let small: u16 = (regy.value() as u16) << 4 | (n.value() as u16);
@@ -310,13 +326,17 @@ impl Instruction {
             Self::Call(addr) => format!("call {}", addr.value()),
             Self::SkipEqual(reg, value) => format!("se r{} {}", reg.value(), value),
             Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),
-            Self::SkipRegistersEqual(regx, regy) => format!("sre r{} r{}", regx.value(), regy.value()),
+            Self::SkipRegistersEqual(regx, regy) => {
+                format!("sre r{} r{}", regx.value(), regy.value())
+            }
             Self::SetRegisterByte(reg, value) => format!("ldb r{} {}", reg.value(), value),
             Self::SetRegisterRegister(regx, regy) => {
                 format!("ldr r{} r{}", regx.value(), regy.value())
             }
             Self::Add(reg, value) => format!("add r{} {}", reg.value(), value),
             Self::Or(regx, regy) => format!("or r{} r{}", regx.value(), regy.value()),
+            Self::And(regx, regy) => format!("and r{} r{}", regx.value(), regy.value()),
+            Self::Xor(regx, regy) => format!("xor r{} r{}", regx.value(), regy.value()),
             Self::Draw(regx, regy, n) => {
                 format!("draw r{} r{} {}", regx.value(), regy.value(), n.value())
             }
@@ -381,8 +401,13 @@ mod tests {
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
             (0x32FF, Instruction::SkipEqual(u4::little(0x02), 0xFF)),
             (0x42EC, Instruction::SkipNotEqual(u4::little(0x02), 0xEC)),
-            (0x5280, Instruction::SkipRegistersEqual(0x02.into(), 0x08.into())),
+            (
+                0x5280,
+                Instruction::SkipRegistersEqual(0x02.into(), 0x08.into()),
+            ),
             (0x8121, Instruction::Or(0x01.into(), 0x02.into())),
+            (0x8122, Instruction::And(0x01.into(), 0x02.into())),
+            (0x8123, Instruction::Xor(0x01.into(), 0x02.into())),
             (
                 0xD265,
                 Instruction::Draw(0x02.into(), 0x06.into(), 0x05.into()),
@@ -423,8 +448,13 @@ mod tests {
             (Instruction::Add(0x04.into(), 0x2), 0x7402),
             (Instruction::SkipEqual(0x03.into(), 8), 0x3308),
             (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),
-            (Instruction::SkipRegistersEqual(0x01.into(), 0x07.into()), 0x5170),
+            (
+                Instruction::SkipRegistersEqual(0x01.into(), 0x07.into()),
+                0x5170,
+            ),
             (Instruction::Or(0x02.into(), 0x03.into()), 0x8231),
+            (Instruction::And(0x02.into(), 0x03.into()), 0x8232),
+            (Instruction::Xor(0x02.into(), 0x03.into()), 0x8233),
             (
                 Instruction::Draw(0x04.into(), 0x05.into(), 0x0F.into()),
                 0xD45F,
