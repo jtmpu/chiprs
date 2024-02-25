@@ -142,6 +142,8 @@ pub enum Instruction {
     /// 8xyE - Set Vx = Vx << 1, VF = overflow
     /// reg y is ignored here, but some intereprters use Vx = Vy << 1
     ShiftLeft(u4, u4),
+    /// 9xy0 - Skip next instruction if Vx != Vy
+    SkipRegistersNotEqual(u4, u4),
     /// Dxyn - Draw n-byte sprite starting at mem I at (Vx, Vy), set VF = collision
     Draw(u4, u4, u4),
     /// Ex9E - Skip next instruction if key with value of Vx is pressed
@@ -213,6 +215,7 @@ impl Instruction {
             (0x80, regx, regy, 0x06) => Some(Self::ShiftRight(regx.into(), (regy >> 4).into())),
             (0x80, regx, regy, 0x07) => Some(Self::SubNChecked(regx.into(), (regy >> 4).into())),
             (0x80, regx, regy, 0x0E) => Some(Self::ShiftLeft(regx.into(), (regy >> 4).into())),
+            (0x90, regx, regy, 0x00) => Some(Self::SkipRegistersNotEqual(regx.into(), (regy >> 4).into())),
             (0xD0, regx, regy, n) => Some(Self::Draw(regx.into(), (regy >> 4).into(), n.into())),
             (0xE0, regx, 0x90, 0x0E) => Some(Self::SkipKeyPressed(regx.into())),
             (0xE0, regx, 0xA0, 0x01) => Some(Self::SkipKeyNotPressed(regx.into())),
@@ -309,6 +312,11 @@ impl Instruction {
                 let small: u16 = (regy.value() as u16) << 4 | 0x0E_u16;
                 (big << 8) | small
             }
+            Self::SkipRegistersNotEqual(regx, regy) => {
+                let big: u16 = 0x90 | (regx.value() as u16);
+                let small: u16 = (regy.value() as u16) << 4 | 0x00_u16;
+                (big << 8) | small
+            }
             Self::Draw(regx, regy, n) => {
                 let big: u16 = 0xd0 | (regx.value() as u16);
                 let small: u16 = (regy.value() as u16) << 4 | (n.value() as u16);
@@ -384,6 +392,7 @@ impl Instruction {
             Self::ShiftRight(regx, regy) => format!("shr r{} r{}", regx.value(), regy.value()),
             Self::SubNChecked(regx, regy) => format!("subnc r{} r{}", regx.value(), regy.value()),
             Self::ShiftLeft(regx, regy) => format!("shl r{} r{}", regx.value(), regy.value()),
+            Self::SkipRegistersNotEqual(regx, regy) => format!("srne r{} r{}", regx.value(), regy.value()),
             Self::Draw(regx, regy, n) => {
                 format!("draw r{} r{} {}", regx.value(), regy.value(), n.value())
             }
@@ -460,6 +469,7 @@ mod tests {
             (0x8126, Instruction::ShiftRight(0x01.into(), 0x02.into())),
             (0x8127, Instruction::SubNChecked(0x01.into(), 0x02.into())),
             (0x812E, Instruction::ShiftLeft(0x01.into(), 0x02.into())),
+            (0x9120, Instruction::SkipRegistersNotEqual(0x01.into(), 0x02.into())),
             (
                 0xD265,
                 Instruction::Draw(0x02.into(), 0x06.into(), 0x05.into()),
@@ -512,6 +522,7 @@ mod tests {
             (Instruction::ShiftRight(0x02.into(), 0x03.into()), 0x8236),
             (Instruction::SubNChecked(0x02.into(), 0x03.into()), 0x8237),
             (Instruction::ShiftLeft(0x02.into(), 0x03.into()), 0x823E),
+            (Instruction::SkipRegistersNotEqual(0x02.into(), 0x03.into()), 0x9230),
             (
                 Instruction::Draw(0x04.into(), 0x05.into(), 0x0F.into()),
                 0xD45F,

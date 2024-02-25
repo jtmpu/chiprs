@@ -451,6 +451,20 @@ impl RawInstr {
                 }
                 Instruction::ShiftLeft(regx_index, regy_index)
             }
+            "srne" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("srne", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("srne", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "srne",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SkipRegistersNotEqual(regx_index, regy_index)
+            }
             "ldf" => {
                 let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("ldf", self.location, e))?;
@@ -1269,6 +1283,17 @@ mod test {
         parse_and_assert(
             "add r14 30",
             [Instruction::Add(u4::little(14), 30)]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_skip_registers_not_equal() {
+        parse_and_assert(
+            "srne r1 r2",
+            [Instruction::SkipRegistersNotEqual(0x01.into(), 0x02.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

@@ -433,6 +433,13 @@ impl Emulator {
                 };
                 self.registries[regx.value() as usize] = result;
             }
+            Instruction::SkipRegistersNotEqual(regx, regy) => {
+                let vx = self.registries[regx.value() as usize];
+                let vy = self.registries[regy.value() as usize];
+                if vx != vy {
+                    self.program_counter += 2;
+                }
+            }
             Instruction::Draw(regx, regy, n) => {
                 let mut vf = 0;
 
