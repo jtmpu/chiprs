@@ -144,6 +144,10 @@ pub enum Instruction {
     ShiftLeft(u4, u4),
     /// 9xy0 - Skip next instruction if Vx != Vy
     SkipRegistersNotEqual(u4, u4),
+    /// Annn - Sets register I = nnn
+    SetMemRegister(u12),
+    /// Bnnn - Jump to location nnn + v0
+    JumpOffset(u12),
     /// Dxyn - Draw n-byte sprite starting at mem I at (Vx, Vy), set VF = collision
     Draw(u4, u4, u4),
     /// Ex9E - Skip next instruction if key with value of Vx is pressed
@@ -216,6 +220,14 @@ impl Instruction {
             (0x80, regx, regy, 0x07) => Some(Self::SubNChecked(regx.into(), (regy >> 4).into())),
             (0x80, regx, regy, 0x0E) => Some(Self::ShiftLeft(regx.into(), (regy >> 4).into())),
             (0x90, regx, regy, 0x00) => Some(Self::SkipRegistersNotEqual(regx.into(), (regy >> 4).into())),
+            (0xA0, _, _, _) => {
+                let address = u12::from_bytes(upper, lower);
+                Some(Self::SetMemRegister(address))
+            }
+            (0xB0, _, _, _) => {
+                let address = u12::from_bytes(upper, lower);
+                Some(Self::JumpOffset(address))
+            }
             (0xD0, regx, regy, n) => Some(Self::Draw(regx.into(), (regy >> 4).into(), n.into())),
             (0xE0, regx, 0x90, 0x0E) => Some(Self::SkipKeyPressed(regx.into())),
             (0xE0, regx, 0xA0, 0x01) => Some(Self::SkipKeyNotPressed(regx.into())),
@@ -317,6 +329,8 @@ impl Instruction {
                 let small: u16 = (regy.value() as u16) << 4 | 0x00_u16;
                 (big << 8) | small
             }
+            Self::SetMemRegister(addr) => 0xA000 | addr.value(),
+            Self::JumpOffset(addr) => 0xB000 | addr.value(),
             Self::Draw(regx, regy, n) => {
                 let big: u16 = 0xd0 | (regx.value() as u16);
                 let small: u16 = (regy.value() as u16) << 4 | (n.value() as u16);
@@ -393,6 +407,8 @@ impl Instruction {
             Self::SubNChecked(regx, regy) => format!("subnc r{} r{}", regx.value(), regy.value()),
             Self::ShiftLeft(regx, regy) => format!("shl r{} r{}", regx.value(), regy.value()),
             Self::SkipRegistersNotEqual(regx, regy) => format!("srne r{} r{}", regx.value(), regy.value()),
+            Self::SetMemRegister(addr) => format!("ldi {}", addr.value()),
+            Self::JumpOffset(addr) => format!("jmpr {}", addr.value()),
             Self::Draw(regx, regy, n) => {
                 format!("draw r{} r{} {}", regx.value(), regy.value(), n.value())
             }
@@ -470,6 +486,8 @@ mod tests {
             (0x8127, Instruction::SubNChecked(0x01.into(), 0x02.into())),
             (0x812E, Instruction::ShiftLeft(0x01.into(), 0x02.into())),
             (0x9120, Instruction::SkipRegistersNotEqual(0x01.into(), 0x02.into())),
+            (0xAABC, Instruction::SetMemRegister(u12::from_u16(0xABC))),
+            (0xBABC, Instruction::JumpOffset(u12::from_u16(0xABC))),
             (
                 0xD265,
                 Instruction::Draw(0x02.into(), 0x06.into(), 0x05.into()),
@@ -523,6 +541,8 @@ mod tests {
             (Instruction::SubNChecked(0x02.into(), 0x03.into()), 0x8237),
             (Instruction::ShiftLeft(0x02.into(), 0x03.into()), 0x823E),
             (Instruction::SkipRegistersNotEqual(0x02.into(), 0x03.into()), 0x9230),
+            (Instruction::SetMemRegister(0x321.into()), 0xA321),
+            (Instruction::JumpOffset(0x321.into()), 0xB321),
             (
                 Instruction::Draw(0x04.into(), 0x05.into(), 0x0F.into()),
                 0xD45F,

@@ -440,6 +440,13 @@ impl Emulator {
                     self.program_counter += 2;
                 }
             }
+            Instruction::SetMemRegister(addr) => {
+                self.address_register = addr.value() as usize;
+            }
+            Instruction::JumpOffset(addr) => {
+                let v0 = self.registries[0] as usize;
+                self.program_counter = (addr.value() as usize) + v0;
+            }
             Instruction::Draw(regx, regy, n) => {
                 let mut vf = 0;
 

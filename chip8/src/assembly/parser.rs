@@ -255,6 +255,58 @@ impl RawInstr {
                 }
                 Instruction::Jump(addr)
             }
+            "ldi" => {
+                let addr = if let Some(s) = self.arg1.as_ref() {
+                    match RawInstr::parse_as_address(self.arg1.as_ref()) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            // No integer found, this must be a label
+                            label = Some(s.clone());
+                            0.into()
+                        }
+                    }
+                } else {
+                    return Err(ParsingError::ArgumentError(
+                        "ldi",
+                        self.location,
+                        ArgumentError::MissingArgument,
+                    ));
+                };
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "ldi",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SetMemRegister(addr)
+            }
+            "jumpr" => {
+                let addr = if let Some(s) = self.arg1.as_ref() {
+                    match RawInstr::parse_as_address(self.arg1.as_ref()) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            // No integer found, this must be a label
+                            label = Some(s.clone());
+                            0.into()
+                        }
+                    }
+                } else {
+                    return Err(ParsingError::ArgumentError(
+                        "jumpr",
+                        self.location,
+                        ArgumentError::MissingArgument,
+                    ));
+                };
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "jumpr",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::JumpOffset(addr)
+            }
             "se" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("se", self.location, e))?;
@@ -1283,6 +1335,28 @@ mod test {
         parse_and_assert(
             "add r14 30",
             [Instruction::Add(u4::little(14), 30)]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_ldi() {
+        parse_and_assert(
+            "ldi 123",
+            [Instruction::SetMemRegister(123.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_jumpr() {
+        parse_and_assert(
+            "jumpr 30",
+            [Instruction::JumpOffset(30.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

@@ -48,6 +48,30 @@ impl Assembly {
                         Instruction::Jump(a)
                     }
                 }
+                Instruction::SetMemRegister(a) => {
+                    if let Some(label) = &instr.label {
+                        if let Some(offset) = self.labels.get(label) {
+                            let address: u12 = ((START_ADDR + (offset * 2)) as u16).into();
+                            Instruction::SetMemRegister(address)
+                        } else {
+                            return Err(BinaryError::MissingLabelAddress(label.clone()));
+                        }
+                    } else {
+                        Instruction::SetMemRegister(a)
+                    }
+                }
+                Instruction::JumpOffset(a) => {
+                    if let Some(label) = &instr.label {
+                        if let Some(offset) = self.labels.get(label) {
+                            let address: u12 = ((START_ADDR + (offset * 2)) as u16).into();
+                            Instruction::JumpOffset(address)
+                        } else {
+                            return Err(BinaryError::MissingLabelAddress(label.clone()));
+                        }
+                    } else {
+                        Instruction::JumpOffset(a)
+                    }
+                }
                 i => i,
             };
             let opcode = instruction.opcode();
