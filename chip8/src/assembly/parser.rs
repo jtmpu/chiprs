@@ -536,6 +536,82 @@ impl RawInstr {
                 }
                 Instruction::SetMemRegisterDefaultSprit(regx_index)
             }
+            "addi" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("addi", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "addi",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "addi",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::AddMemReg(regx_index)
+            }
+            "sbcd" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sbcd", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "sbcd",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "sbcd",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SetBcd(regx_index)
+            }
+            "write" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("write", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "write",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "write",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::MemWrite(regx_index)
+            }
+            "read" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("read", self.location, e))?;
+                if let Some(v) = &self.arg2 {
+                    return Err(ParsingError::ArgumentError(
+                        "read",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "read",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::MemRead(regx_index)
+            }
             "rand" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("rand", self.location, e))?;
@@ -1492,6 +1568,50 @@ mod test {
         parse_and_assert(
             "ldd r7",
             [Instruction::SetRegisterDelayTimer(7.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_addi() {
+        parse_and_assert(
+            "addi r7",
+            [Instruction::AddMemReg(7.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_sbcd() {
+        parse_and_assert(
+            "sbcd r7",
+            [Instruction::SetBcd(7.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_write() {
+        parse_and_assert(
+            "write r7",
+            [Instruction::MemWrite(7.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_read() {
+        parse_and_assert(
+            "read r7",
+            [Instruction::MemRead(7.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

@@ -158,14 +158,25 @@ pub enum Instruction {
     SkipKeyNotPressed(u4),
     /// Fx0A - Wait for a key press, store pressed key in Vx
     WaitForKey(u4),
-    /// Fx29 - Set I = location of default sprite for digit Vx
-    SetMemRegisterDefaultSprit(u4),
     /// Fx07 - Set Vx = delay timer
     SetRegisterDelayTimer(u4),
     /// Fx15 - Set delay timer = Vx
     SetDelayTimer(u4),
     /// Fx18 - Set sound time = Vx
     SetSoundTimer(u4),
+    /// Fx1E - I = I + Vx
+    AddMemReg(u4),
+    /// Fx29 - Set I = location of default sprite for digit Vx
+    SetMemRegisterDefaultSprit(u4),
+    /// Fx33 - Store BCD representation of Vx in I, I+1 and I+2
+    /// I = hundreds digit
+    /// I + 1 = tens digit
+    /// I + 2 = ones digit
+    SetBcd(u4),
+    /// Fx55 - Store registers v0 through Vx in memory starting at location I
+    MemWrite(u4),
+    /// Fx65 - Read registers v0 through vx from memory starting at location I
+    MemRead(u4),
 }
 
 impl Instruction {
@@ -240,10 +251,14 @@ impl Instruction {
             (0x80, regx, regy, 0x00) => {
                 Some(Self::SetRegisterRegister(regx.into(), (regy >> 4).into()))
             }
-            (0xF0, regx, 0x20, 0x09) => Some(Self::SetMemRegisterDefaultSprit(regx.into())),
             (0xF0, regx, 0x00, 0x07) => Some(Self::SetRegisterDelayTimer(regx.into())),
             (0xF0, regx, 0x10, 0x05) => Some(Self::SetDelayTimer(regx.into())),
             (0xF0, regx, 0x10, 0x08) => Some(Self::SetSoundTimer(regx.into())),
+            (0xF0, regx, 0x10, 0x0E) => Some(Self::AddMemReg(regx.into())),
+            (0xF0, regx, 0x20, 0x09) => Some(Self::SetMemRegisterDefaultSprit(regx.into())),
+            (0xF0, regx, 0x30, 0x03) => Some(Self::SetBcd(regx.into())),
+            (0xF0, regx, 0x50, 0x05) => Some(Self::MemWrite(regx.into())),
+            (0xF0, regx, 0x60, 0x05) => Some(Self::MemRead(regx.into())),
             (0xF0, 0x01, 0xE0, 0x0E) => Some(Self::Exit),
             (0xF0, val, 0xE0, 0x0F) => Some(Self::Debug(val.into())),
             (0xF0, _, 0xF0, 0x0F) => Some(Self::Breakpoint),
@@ -386,6 +401,26 @@ impl Instruction {
                 let small: u16 = 0x18;
                 (big << 8) | small
             }
+            Self::AddMemReg(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x1E;
+                (big << 8) | small
+            }
+            Self::SetBcd(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x33;
+                (big << 8) | small
+            }
+            Self::MemWrite(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x55;
+                (big << 8) | small
+            }
+            Self::MemRead(regx) => {
+                let big: u16 = 0xF0 | (regx.value() as u16);
+                let small: u16 = 0x65;
+                (big << 8) | small
+            }
         }
     }
 
@@ -432,6 +467,10 @@ impl Instruction {
             Self::SetRegisterDelayTimer(reg) => format!("ldd r{}", reg.value()),
             Self::SetDelayTimer(reg) => format!("delay r{}", reg.value()),
             Self::SetSoundTimer(reg) => format!("sound r{}", reg.value()),
+            Self::AddMemReg(reg) => format!("addi r{}", reg.value()),
+            Self::SetBcd(reg) => format!("sbcd r{}", reg.value()),
+            Self::MemWrite(reg) => format!("write r{}", reg.value()),
+            Self::MemRead(reg) => format!("read r{}", reg.value()),
         }
     }
 }
@@ -516,6 +555,10 @@ mod tests {
             (0xF107, Instruction::SetRegisterDelayTimer(0x01.into())),
             (0xF915, Instruction::SetDelayTimer(0x09.into())),
             (0xF918, Instruction::SetSoundTimer(0x09.into())),
+            (0xF91E, Instruction::AddMemReg(0x09.into())),
+            (0xF933, Instruction::SetBcd(0x09.into())),
+            (0xF955, Instruction::MemWrite(0x09.into())),
+            (0xF965, Instruction::MemRead(0x09.into())),
         ];
 
         for case in cases {
@@ -575,6 +618,10 @@ mod tests {
             (Instruction::SetRegisterDelayTimer(0x07.into()), 0xF707),
             (Instruction::SetDelayTimer(0x02.into()), 0xF215),
             (Instruction::SetSoundTimer(0x02.into()), 0xF218),
+            (Instruction::AddMemReg(0x02.into()), 0xF21E),
+            (Instruction::SetBcd(0x02.into()), 0xF233),
+            (Instruction::MemWrite(0x02.into()), 0xF255),
+            (Instruction::MemRead(0x02.into()), 0xF265),
         ];
         for case in cases {
             let opcode = case.0.opcode();

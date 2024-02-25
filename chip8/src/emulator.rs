@@ -506,6 +506,30 @@ impl Emulator {
             Instruction::SetSoundTimer(regx) => {
                 self.sound_timer = self.registries[regx.value() as usize];
             }
+            Instruction::AddMemReg(regx) => {
+                self.address_register += self.registries[regx.value() as usize] as usize;
+            }
+            Instruction::SetBcd(regx) => {
+                let value = self.registries[regx.value() as usize];
+                let hundred = value / 100_u8;
+                let ten = (value % 100) / 10;
+                let one = value % 10;
+                self.memory[self.address_register] = hundred;
+                self.memory[self.address_register + 1] = ten;
+                self.memory[self.address_register + 2] = one;
+            }
+            Instruction::MemWrite(regx) => {
+                let count = self.registries[regx.value() as usize];
+                for i in 0..count {
+                    self.memory[self.address_register + i as usize] = self.registries[i as usize];
+                }
+            }
+            Instruction::MemRead(regx) => {
+                let count = self.registries[regx.value() as usize];
+                for i in 0..count {
+                    self.registries[i as usize] = self.memory[self.address_register + i as usize];
+                }
+            }
             Instruction::Debug(value) => {
                 let msg = match value {
                     x if x == u4::little(1) => {
