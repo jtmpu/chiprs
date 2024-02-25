@@ -281,7 +281,7 @@ impl RawInstr {
                 }
                 Instruction::SetMemRegister(addr)
             }
-            "jumpr" => {
+            "jmpr" => {
                 let addr = if let Some(s) = self.arg1.as_ref() {
                     match RawInstr::parse_as_address(self.arg1.as_ref()) {
                         Ok(v) => v,
@@ -293,14 +293,14 @@ impl RawInstr {
                     }
                 } else {
                     return Err(ParsingError::ArgumentError(
-                        "jumpr",
+                        "jmpr",
                         self.location,
                         ArgumentError::MissingArgument,
                     ));
                 };
                 if let Some(v) = &self.arg2 {
                     return Err(ParsingError::ArgumentError(
-                        "jumpr",
+                        "jmpr",
                         self.location,
                         ArgumentError::UnexpectedArgument(v.clone()),
                     ));
@@ -535,6 +535,20 @@ impl RawInstr {
                     ));
                 }
                 Instruction::SetMemRegisterDefaultSprit(regx_index)
+            }
+            "rand" => {
+                let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("rand", self.location, e))?;
+                let value = RawInstr::parse_as_value(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("rand", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "rand",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::Randomize(reg_index, value)
             }
             "draw" => {
                 let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
@@ -1353,9 +1367,9 @@ mod test {
     }
 
     #[test]
-    fn parse_jumpr() {
+    fn parse_jmpr() {
         parse_and_assert(
-            "jumpr 30",
+            "jmpr 30",
             [Instruction::JumpOffset(30.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
@@ -1445,6 +1459,17 @@ mod test {
         parse_and_assert(
             "ldf r4",
             [Instruction::SetMemRegisterDefaultSprit(4.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_rand() {
+        parse_and_assert(
+            "rand r4 0",
+            [Instruction::Randomize(4.into(), 0.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

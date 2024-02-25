@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use rand::{thread_rng, RngCore};
 use tracing::{debug, error, info, span, Level};
 
 use crate::instructions::{u4, Instruction};
@@ -312,11 +313,7 @@ impl Emulator {
         let vy = self.registries[regy.value() as usize];
         // this is probably the wrong implementation
         let (result, borrow) = vx.overflowing_sub(vy);
-        self.registries[0xF_usize] = if borrow {
-            1
-        } else {
-            0
-        };
+        self.registries[0xF_usize] = if borrow { 1 } else { 0 };
         self.registries[regx.value() as usize] = result;
     }
 
@@ -397,11 +394,7 @@ impl Emulator {
                 // here? 1111 1111 + 0000 0001 = 1111 1110 is what's expected,
                 // and according to rust docs overflowing_add == 0 in that case
                 let result = (vx as u16) + (vy as u16);
-                let vf = if result & 0xFF00 >= 1 {
-                    1
-                } else {
-                    0
-                };
+                let vf = if result & 0xFF00 >= 1 { 1 } else { 0 };
                 self.registries[0xF_usize] = vf;
                 self.registries[regx.value() as usize] = (result & 0x00FF) as u8;
             }
@@ -412,11 +405,7 @@ impl Emulator {
                 let vx = self.registries[regx.value() as usize];
                 let vy = self.registries[regy.value() as usize];
                 let (result, overflow) = vx.overflowing_shr(vy as u32);
-                self.registries[0xF_usize] = if overflow {
-                    1
-                } else {
-                    0
-                };
+                self.registries[0xF_usize] = if overflow { 1 } else { 0 };
                 self.registries[regx.value() as usize] = result;
             }
             Instruction::SubNChecked(regx, regy) => {
@@ -426,11 +415,7 @@ impl Emulator {
                 let vx = self.registries[regx.value() as usize];
                 let vy = self.registries[regy.value() as usize];
                 let (result, overflow) = vx.overflowing_shl(vy as u32);
-                self.registries[0xF_usize] = if overflow {
-                    1
-                } else {
-                    0
-                };
+                self.registries[0xF_usize] = if overflow { 1 } else { 0 };
                 self.registries[regx.value() as usize] = result;
             }
             Instruction::SkipRegistersNotEqual(regx, regy) => {
@@ -446,6 +431,21 @@ impl Emulator {
             Instruction::JumpOffset(addr) => {
                 let v0 = self.registries[0] as usize;
                 self.program_counter = (addr.value() as usize) + v0;
+            }
+            Instruction::Randomize(reg, value) => {
+                let rb = thread_rng()
+                    .next_u32()
+                    .to_be_bytes()
+                    .first()
+                    .map(|e| e.clone());
+                let rb = match rb {
+                    Some(b) => b,
+                    None => {
+                        error!("failed to randomize byte, using default value of 0xFF");
+                        0xFF
+                    }
+                };
+                self.registries[reg.value() as usize] = rb & value;
             }
             Instruction::Draw(regx, regy, n) => {
                 let mut vf = 0;
