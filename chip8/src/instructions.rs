@@ -112,8 +112,12 @@ pub enum Instruction {
     Jump(u12),
     /// 2nnn - Call subroutine at nnn
     Call(u12),
+    /// 3xkk - Skip next instruction if Vx == kk
+    SkipEqual(u4, u8),
     /// 4xkk - Skip next instruction if Vx != kk
     SkipNotEqual(u4, u8),
+    /// 5xy0 - Skip next instruction if Vx == Vy
+    SkipRegistersEqual(u4, u4),
     /// 6xkk - Set Vx = kk
     SetRegisterByte(u4, u8),
     /// 8xy0 - Set Vx = Vy
@@ -160,10 +164,20 @@ impl Instruction {
                 let address = u12::from_bytes(upper, lower);
                 Some(Self::Call(address))
             }
+            (0x30, _, _, _) => {
+                let register = u4::little(upper);
+                let value = lower;
+                Some(Self::SkipEqual(register, value))
+            }
             (0x40, _, _, _) => {
                 let register = u4::little(upper);
                 let value = lower;
                 Some(Self::SkipNotEqual(register, value))
+            }
+            (0x50, _, _, 0x00) => {
+                let regx = u4::little(upper);
+                let regy = u4::big(lower);
+                Some(Self::SkipRegistersEqual(regx, regy))
             }
             (0x60, _, _, _) => {
                 let register = u4::little(upper);
@@ -207,9 +221,19 @@ impl Instruction {
             Self::Return => 0x00ee,
             Self::Jump(addr) => 0x1000 | addr.value(),
             Self::Call(addr) => 0x2000 | addr.value(),
+            Self::SkipEqual(reg, value) => {
+                let big: u16 = 0x30 | (reg.value() as u16);
+                let small: u16 = *value as u16;
+                (big << 8) | small
+            }
             Self::SkipNotEqual(reg, value) => {
                 let big: u16 = 0x40 | (reg.value() as u16);
                 let small: u16 = *value as u16;
+                (big << 8) | small
+            }
+            Self::SkipRegistersEqual(regx, regy) => {
+                let big: u16 = 0x50 | (regx.value() as u16);
+                let small: u16 = (regy.value() as u16) << 4 | 0x00_u16;
                 (big << 8) | small
             }
             Self::SetRegisterByte(reg, value) => {
@@ -284,7 +308,9 @@ impl Instruction {
             Self::Return => "ret".to_string(),
             Self::Jump(addr) => format!("jmp {}", addr.value()),
             Self::Call(addr) => format!("call {}", addr.value()),
+            Self::SkipEqual(reg, value) => format!("se r{} {}", reg.value(), value),
             Self::SkipNotEqual(reg, value) => format!("sne r{} {}", reg.value(), value),
+            Self::SkipRegistersEqual(regx, regy) => format!("sre r{} r{}", regx.value(), regy.value()),
             Self::SetRegisterByte(reg, value) => format!("ldb r{} {}", reg.value(), value),
             Self::SetRegisterRegister(regx, regy) => {
                 format!("ldr r{} r{}", regx.value(), regy.value())
@@ -353,7 +379,9 @@ mod tests {
                 Instruction::SetRegisterRegister(0x01.into(), 0x03.into()),
             ),
             (0x7812, Instruction::Add(u4::little(0x08), 0x12)),
+            (0x32FF, Instruction::SkipEqual(u4::little(0x02), 0xFF)),
             (0x42EC, Instruction::SkipNotEqual(u4::little(0x02), 0xEC)),
+            (0x5280, Instruction::SkipRegistersEqual(0x02.into(), 0x08.into())),
             (0x8121, Instruction::Or(0x01.into(), 0x02.into())),
             (
                 0xD265,
@@ -393,7 +421,9 @@ mod tests {
                 0x8340,
             ),
             (Instruction::Add(0x04.into(), 0x2), 0x7402),
+            (Instruction::SkipEqual(0x03.into(), 8), 0x3308),
             (Instruction::SkipNotEqual(0x05.into(), 4), 0x4504),
+            (Instruction::SkipRegistersEqual(0x01.into(), 0x07.into()), 0x5170),
             (Instruction::Or(0x02.into(), 0x03.into()), 0x8231),
             (
                 Instruction::Draw(0x04.into(), 0x05.into(), 0x0F.into()),

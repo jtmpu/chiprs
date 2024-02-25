@@ -255,6 +255,20 @@ impl RawInstr {
                 }
                 Instruction::Jump(addr)
             }
+            "se" => {
+                let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                let value = RawInstr::parse_as_value(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "sne",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SkipEqual(reg_index, value)
+            }
             "sne" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
@@ -268,6 +282,20 @@ impl RawInstr {
                     ));
                 }
                 Instruction::SkipNotEqual(reg_index, value)
+            }
+            "sre" => {
+                let regx = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                let regy = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("sne", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "sne",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SkipRegistersEqual(regx, regy)
             }
             "ldb" => {
                 let reg_index = RawInstr::parse_as_registry(self.arg1.as_ref())
@@ -1018,10 +1046,32 @@ mod test {
     }
 
     #[test]
+    fn parse_skip_equal() {
+        parse_and_assert(
+            "se r5 10",
+            [Instruction::SkipEqual(u4::little(0x05), 10)]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
     fn parse_skip_not_equal() {
         parse_and_assert(
             "sne r5 10",
             [Instruction::SkipNotEqual(u4::little(0x05), 10)]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_skip_registers_equal() {
+        parse_and_assert(
+            "sre r5 r2",
+            [Instruction::SkipRegistersEqual(0x05.into(), 0x02.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),

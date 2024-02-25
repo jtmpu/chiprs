@@ -335,9 +335,20 @@ impl Emulator {
             Instruction::Jump(addr) => {
                 self.program_counter = addr.value() as usize;
             }
+            Instruction::SkipEqual(register, value) => {
+                let index = register.value() as usize;
+                if self.registries[index] == value {
+                    self.program_counter += 2;
+                }
+            }
             Instruction::SkipNotEqual(register, value) => {
                 let index = register.value() as usize;
                 if self.registries[index] != value {
+                    self.program_counter += 2;
+                }
+            }
+            Instruction::SkipRegistersEqual(regx, regy) => {
+                if self.registries[regx.value() as usize] == self.registries[regy.value() as usize] {
                     self.program_counter += 2;
                 }
             }
