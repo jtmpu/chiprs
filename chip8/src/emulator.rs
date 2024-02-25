@@ -307,6 +307,19 @@ impl Emulator {
         Ok(ret)
     }
 
+    fn sub_regs(&mut self, regx: u4, regy: u4) {
+        let vx = self.registries[regx.value() as usize];
+        let vy = self.registries[regy.value() as usize];
+        // this is probably the wrong implementation
+        let (result, borrow) = vx.overflowing_sub(vy);
+        self.registries[0xF_usize] = if borrow {
+            1
+        } else {
+            0
+        };
+        self.registries[regx.value() as usize] = result;
+    }
+
     pub fn execute(&mut self, instruction: Instruction) -> Result<bool, Box<dyn Error>> {
         debug!(instruction = ?instruction, "executing instruction");
         match instruction {
@@ -376,6 +389,49 @@ impl Emulator {
                 let vx = self.registries[regx.value() as usize];
                 let vy = self.registries[regy.value() as usize];
                 self.registries[regx.value() as usize] = vx ^ vy;
+            }
+            Instruction::AddChecked(regx, regy) => {
+                let vx = self.registries[regx.value() as usize];
+                let vy = self.registries[regy.value() as usize];
+                // u8::overflowing_add wraps the value, which isn't what I want
+                // here? 1111 1111 + 0000 0001 = 1111 1110 is what's expected,
+                // and according to rust docs overflowing_add == 0 in that case
+                let result = (vx as u16) + (vy as u16);
+                let vf = if result & 0xFF00 >= 1 {
+                    1
+                } else {
+                    0
+                };
+                self.registries[0xF_usize] = vf;
+                self.registries[regx.value() as usize] = (result & 0x00FF) as u8;
+            }
+            Instruction::SubChecked(regx, regy) => {
+                self.sub_regs(regx, regy);
+            }
+            Instruction::ShiftRight(regx, regy) => {
+                let vx = self.registries[regx.value() as usize];
+                let vy = self.registries[regy.value() as usize];
+                let (result, overflow) = vx.overflowing_shr(vy as u32);
+                self.registries[0xF_usize] = if overflow {
+                    1
+                } else {
+                    0
+                };
+                self.registries[regx.value() as usize] = result;
+            }
+            Instruction::SubNChecked(regx, regy) => {
+                self.sub_regs(regy, regx);
+            }
+            Instruction::ShiftLeft(regx, regy) => {
+                let vx = self.registries[regx.value() as usize];
+                let vy = self.registries[regy.value() as usize];
+                let (result, overflow) = vx.overflowing_shl(vy as u32);
+                self.registries[0xF_usize] = if overflow {
+                    1
+                } else {
+                    0
+                };
+                self.registries[regx.value() as usize] = result;
             }
             Instruction::Draw(regx, regy, n) => {
                 let mut vf = 0;

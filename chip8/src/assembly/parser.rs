@@ -381,6 +381,76 @@ impl RawInstr {
                 }
                 Instruction::Xor(regx_index, regy_index)
             }
+            "addc" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("addc", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("addc", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "addc",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::AddChecked(regx_index, regy_index)
+            }
+            "subc" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("subc", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("subc", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "subc",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SubChecked(regx_index, regy_index)
+            }
+            "subnc" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("subnc", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("subnc", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "subnc",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::SubNChecked(regx_index, regy_index)
+            }
+            "shr" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("shr", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("shr", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "shr",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::ShiftRight(regx_index, regy_index)
+            }
+            "shl" => {
+                let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("shl", self.location, e))?;
+                let regy_index = RawInstr::parse_as_registry(self.arg2.as_ref())
+                    .map_err(|e| ParsingError::ArgumentError("shl", self.location, e))?;
+                if let Some(v) = &self.arg3 {
+                    return Err(ParsingError::ArgumentError(
+                        "shl",
+                        self.location,
+                        ArgumentError::UnexpectedArgument(v.clone()),
+                    ));
+                }
+                Instruction::ShiftLeft(regx_index, regy_index)
+            }
             "ldf" => {
                 let regx_index = RawInstr::parse_as_registry(self.arg1.as_ref())
                     .map_err(|e| ParsingError::ArgumentError("ldf", self.location, e))?;
@@ -1133,6 +1203,61 @@ mod test {
         parse_and_assert(
             "xor r1 r2",
             [Instruction::Xor(0x01.into(), 0x02.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_addc() {
+        parse_and_assert(
+            "addc r1 r2",
+            [Instruction::AddChecked(0x01.into(), 0x02.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_subc() {
+        parse_and_assert(
+            "subc r1 r2",
+            [Instruction::SubChecked(0x01.into(), 0x02.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_subnc() {
+        parse_and_assert(
+            "subnc r1 r2",
+            [Instruction::SubNChecked(0x01.into(), 0x02.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_shift_right() {
+        parse_and_assert(
+            "shr r1 r2",
+            [Instruction::ShiftRight(0x01.into(), 0x02.into())]
+                .iter()
+                .map(|e| ParsedInstruction::new(*e))
+                .collect(),
+        );
+    }
+
+    #[test]
+    fn parse_shift_left() {
+        parse_and_assert(
+            "shl r1 r2",
+            [Instruction::ShiftLeft(0x01.into(), 0x02.into())]
                 .iter()
                 .map(|e| ParsedInstruction::new(*e))
                 .collect(),
