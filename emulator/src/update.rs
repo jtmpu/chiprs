@@ -1,11 +1,11 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
 
 use chip8::{emulator::KeyStatus, instructions::u4};
-use tracing::{error, info};
+use tracing::info;
 
 use crate::app::{App, EmulatorState, ViewState};
 
